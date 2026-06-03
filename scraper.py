@@ -21,7 +21,11 @@ import anthropic
 
 # ── Asetukset ────────────────────────────────────────────────────────────────
 
-YLE_RSS_URL       = "https://feeds.yle.fi/uutiset/v1/majorHeadlines/YLE_UUTISET.rss"
+YLE_RSS_URLS = [
+    "https://feeds.yle.fi/uutiset/v1/majorHeadlines/YLE_UUTISET.rss",
+    "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET",
+    "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_URHEILU",
+]
 YLE_ETUSIVU_URL   = "https://yle.fi"
 SHEETS_SHEET_ID   = os.environ["GOOGLE_SHEET_ID"]
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
@@ -149,27 +153,31 @@ def parse_dt(s):
 # ── RSS ───────────────────────────────────────────────────────────────────────
 
 def hae_rss_uutiset():
-    resp = requests.get(YLE_RSS_URL, timeout=15)
-    resp.raise_for_status()
-    root = ET.fromstring(resp.content)
+    from email.utils import parsedate_to_datetime
     uutiset = {}
-    for item in root.findall(".//item"):
-        link  = item.findtext("link","").strip()
-        title = item.findtext("title","").strip()
-        pub   = item.findtext("pubDate","")
+    for rss_url in YLE_RSS_URLS:
         try:
-            from email.utils import parsedate_to_datetime
-            pub_dt = parsedate_to_datetime(pub).astimezone(timezone.utc)
-        except Exception:
-            pub_dt = datetime.now(timezone.utc)
-        if link:
-            uutiset[link] = {
-                "otsikko":        title,
-                "julkaisuaika":   pub_dt.strftime("%Y-%m-%d %H:%M"),
-                "julkaisuikkuna": get_aikaikkuna(pub_dt),
-                "viikonpaiva":    get_viikonpaiva(pub_dt),
-            }
-    print(f"RSS: {len(uutiset)} uutista")
+            resp = requests.get(rss_url, timeout=15)
+            resp.raise_for_status()
+            root = ET.fromstring(resp.content)
+            for item in root.findall(".//item"):
+                link  = item.findtext("link","").strip()
+                title = item.findtext("title","").strip()
+                pub   = item.findtext("pubDate","")
+                try:
+                    pub_dt = parsedate_to_datetime(pub).astimezone(timezone.utc)
+                except Exception:
+                    pub_dt = datetime.now(timezone.utc)
+                if link and link not in uutiset:
+                    uutiset[link] = {
+                        "otsikko":        title,
+                        "julkaisuaika":   pub_dt.strftime("%Y-%m-%d %H:%M"),
+                        "julkaisuikkuna": get_aikaikkuna(pub_dt),
+                        "viikonpaiva":    get_viikonpaiva(pub_dt),
+                    }
+        except Exception as e:
+            print(f"RSS-virhe ({rss_url}): {e}")
+    print(f"RSS: {len(uutiset)} uutista yhteensä")
     return uutiset
 
 # ── Etusivu ───────────────────────────────────────────────────────────────────
@@ -181,7 +189,10 @@ def on_uutislinkki(href):
     polut = ["/uutiset/", "/a/", "/urheilu/", "/kulttuuri/", "/novosti/", "/news/"]
     ohita = ["/uutiset/paikallisuutiset", "/uutiset/yhteystiedot",
              "yle.fi/t/", "areena.yle.fi", "/rss", "/opas",
-             "/lyhyet", "/tuoreimmat", "/selkouutiset"]
+             "/lyhyet", "/tuoreimmat", "/selkouutiset",
+             "sanapyramidi", "futistietaja", "saavutettavuus",
+             "asiakaspalvelu", "yhteystiedot", "onelink.me",
+             "/abitreenit", "/elavaarkisto", "/oppiminen"]
     if any(o in href for o in ohita):
         return False
     return any(p in href for p in polut)
