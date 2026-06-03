@@ -174,46 +174,90 @@ def hae_rss_uutiset():
 
 # ── Etusivu ───────────────────────────────────────────────────────────────────
 
+def on_uutislinkki(href):
+    """Tarkistaa onko linkki Ylen uutisartikkeli."""
+    if not href:
+        return False
+    polut = ["/uutiset/", "/a/", "/urheilu/", "/kulttuuri/", "/novosti/", "/news/"]
+    ohita = ["/uutiset/paikallisuutiset", "/uutiset/yhteystiedot",
+             "yle.fi/t/", "areena.yle.fi", "/rss", "/opas",
+             "/lyhyet", "/tuoreimmat", "/selkouutiset"]
+    if any(o in href for o in ohita):
+        return False
+    return any(p in href for p in polut)
+
 def hae_etusivu_uutiset():
     headers = {"User-Agent": "Mozilla/5.0 (compatible; YleSeuranta/1.0)"}
     resp = requests.get(YLE_ETUSIVU_URL, headers=headers, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
     tulokset = []
+    sijainti_per_osio = {}
 
-    def lisaa(elementit, osio):
-        for i, a in enumerate(elementit, 1):
-            href = a.get("href","")
-            if not href.startswith("http"):
-                href = "https://yle.fi" + href
-            ots = a.get_text(strip=True)
-            if href and ots and "yle.fi/a-" in href:
-                tulokset.append({"url":href,"otsikko":ots,"osio":osio,"sijainti":i})
+    def lisaa(a_elementti, osio):
+        href = a_elementti.get("href","")
+        if not href.startswith("http"):
+            href = "https://yle.fi" + href
+        ots = a_elementti.get_text(strip=True)
+        if not ots or not on_uutislinkki(href):
+            return
+        sijainti_per_osio[osio] = sijainti_per_osio.get(osio, 0) + 1
+        tulokset.append({
+            "url": href,
+            "otsikko": ots,
+            "osio": osio,
+            "sijainti": sijainti_per_osio[osio]
+        })
 
-    paa = soup.find("main") or soup
-    lisaa(paa.find_all("a", href=True)[:30], "paasivu")
+    # Käy kaikki linkit läpi ja luokittele osion mukaan
+    kaikki_linkit = soup.find_all("a", href=True)
+    
+    nahdyt_urlit = set()
+    for a in kaikki_linkit:
+        href = a.get("href","")
+        if not href.startswith("http"):
+            href = "https://yle.fi" + href
+        if not on_uutislinkki(href) or href in nahdyt_urlit:
+            continue
+        
+        ots = a.get_text(strip=True)
+        if not ots or len(ots) < 5:
+            continue
 
-    for tag in soup.find_all(["h2","h3","section"]):
-        t = tag.get_text(strip=True).lower()
-        if "suosituimm" in t:
-            el = tag.find_next("ul") or tag.find_next("ol")
-            if el: lisaa(el.find_all("a", href=True), "suosituimmat")
-        elif "keskustellaan" in t:
-            el = tag.find_next("ul") or tag.find_next("ol")
-            if el: lisaa(el.find_all("a", href=True), "keskustellaan")
-        elif "tuoreim" in t:
-            el = tag.find_next("ul") or tag.find_next("ol")
-            if el: lisaa(el.find_all("a", href=True), "tuoreimmat")
+        # Tunnista osio vanhempaelementtien perusteella
+        osio = "paasivu"
+        vanhemmat = a.find_parents()
+        for v in vanhemmat[:6]:
+            teksti = (v.get("class") or [])
+            teksti_str = " ".join(teksti).lower() if teksti else ""
+            aria = (v.get("aria-label") or "").lower()
+            h_tag = v.find(["h2","h3"])
+            h_teksti = h_tag.get_text(strip=True).lower() if h_tag else ""
+            
+            if "suosituimm" in teksti_str or "suosituimm" in aria or "suosituimm" in h_teksti:
+                osio = "suosituimmat"
+                break
+            elif "keskustell" in teksti_str or "keskustell" in aria or "keskustell" in h_teksti:
+                osio = "keskustellaan"
+                break
+            elif "tuoreim" in teksti_str or "tuoreim" in aria or "tuoreim" in h_teksti:
+                osio = "tuoreimmat"
+                break
+            elif "lyhyesti" in href or "lyhyesti" in teksti_str:
+                osio = "lyhyesti"
+                break
 
-    nahdyt, uniikki = set(), []
-    for u in tulokset:
-        k = (u["url"], u["osio"])
-        if k not in nahdyt:
-            nahdyt.add(k)
-            uniikki.append(u)
+        nahdyt_urlit.add(href)
+        sijainti_per_osio[osio] = sijainti_per_osio.get(osio, 0) + 1
+        tulokset.append({
+            "url": href,
+            "otsikko": ots,
+            "osio": osio,
+            "sijainti": sijainti_per_osio[osio]
+        })
 
-    print(f"Etusivu: {len(uniikki)} havaintoa")
-    return uniikki
+    print(f"Etusivu: {len(tulokset)} havaintoa ({dict(sijainti_per_osio)})")
+    return tulokset
 
 # ── Kategorisointi tagijärjestelmällä ─────────────────────────────────────────
 
