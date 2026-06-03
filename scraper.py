@@ -583,22 +583,28 @@ def main():
     if raaka_rivit:
         ws_raaka.append_rows(raaka_rivit, value_input_option="USER_ENTERED")
         print(f"Raakadata: +{len(raaka_rivit)} riviä")
+        time.sleep(2)
 
     if kortti_uudet:
         ws_kortti.append_rows(kortti_uudet, value_input_option="USER_ENTERED")
         print(f"Uutiskortti: +{len(kortti_uudet)} uutta")
+        time.sleep(2)
 
     if kortti_paivitys:
-        for rivi_nro, arvot in kortti_paivitys:
-            col_letter = ""
-            n = len(KORTTI_OTSIKOT)
+        def sarakekirjain(n):
+            kirjain = ""
             while n:
-                n, remainder = divmod(n - 1, 26)
-                col_letter = chr(65 + remainder) + col_letter
+                n, r = divmod(n - 1, 26)
+                kirjain = chr(65 + r) + kirjain
+            return kirjain
+        col_letter = sarakekirjain(len(KORTTI_OTSIKOT))
+        for rivi_nro, arvot in kortti_paivitys:
             ws_kortti.update(
-                f"A{rivi_nro}:{col_letter}{rivi_nro}",
-                [arvot], value_input_option="USER_ENTERED"
+                values=[arvot],
+                range_name=f"A{rivi_nro}:{col_letter}{rivi_nro}",
+                value_input_option="USER_ENTERED"
             )
+            time.sleep(1.2)  # Google Sheets: max 60 kirjoitusta/min
         print(f"Uutiskortti: {len(kortti_paivitys)} päivitetty")
 
     print(f"\n✅ Valmis! {nyt_str}")
