@@ -187,8 +187,18 @@ def on_uutislinkki(href):
     return any(p in href for p in polut)
 
 def hae_etusivu_uutiset():
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; YleSeuranta/1.0)"}
-    resp = requests.get(YLE_ETUSIVU_URL, headers=headers, timeout=15)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "fi-FI,fi;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "max-age=0",
+    }
+    session = requests.Session()
+    session.headers.update(headers)
+    resp = session.get(YLE_ETUSIVU_URL, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
     tulokset = []
