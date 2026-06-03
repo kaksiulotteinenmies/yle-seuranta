@@ -14,6 +14,8 @@ import time
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+HELSINKI = ZoneInfo("Europe/Helsinki")
 from bs4 import BeautifulSoup
 import gspread
 from google.oauth2.service_account import Credentials
@@ -165,7 +167,7 @@ def hae_rss_uutiset():
                 title = item.findtext("title","").strip()
                 pub   = item.findtext("pubDate","")
                 try:
-                    pub_dt = parsedate_to_datetime(pub).astimezone(timezone.utc)
+                    pub_dt = parsedate_to_datetime(pub).astimezone(HELSINKI)
                 except Exception:
                     pub_dt = datetime.now(timezone.utc)
                 if link and link not in uutiset:
@@ -512,9 +514,9 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, vanha=None):
 # ── Pääohjelma ────────────────────────────────────────────────────────────────
 
 def main():
-    nyt     = datetime.now(timezone.utc)
+    nyt     = datetime.now(HELSINKI)
     nyt_str = nyt.strftime("%Y-%m-%d %H:%M")
-    print(f"\n=== Yle-seuranta: {nyt_str} UTC ===\n")
+    print(f"\n=== Yle-seuranta: {nyt_str} Helsinki ===\n")
 
     rss_uutiset   = hae_rss_uutiset()
     etusivu_lista = hae_etusivu_uutiset()
