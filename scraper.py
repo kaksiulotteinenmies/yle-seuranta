@@ -590,8 +590,13 @@ def main():
 
     if kortti_paivitys:
         for rivi_nro, arvot in kortti_paivitys:
+            col_letter = ""
+            n = len(KORTTI_OTSIKOT)
+            while n:
+                n, remainder = divmod(n - 1, 26)
+                col_letter = chr(65 + remainder) + col_letter
             ws_kortti.update(
-                f"A{rivi_nro}:{chr(64+len(KORTTI_OTSIKOT))}{rivi_nro}",
+                f"A{rivi_nro}:{col_letter}{rivi_nro}",
                 [arvot], value_input_option="USER_ENTERED"
             )
         print(f"Uutiskortti: {len(kortti_paivitys)} päivitetty")
