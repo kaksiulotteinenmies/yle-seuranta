@@ -182,20 +182,28 @@ def hae_rss_uutiset():
 
 # ── Etusivu ───────────────────────────────────────────────────────────────────
 
-def on_uutislinkki(href):
-    """Tarkistaa onko linkki Ylen uutisartikkeli."""
-    if not href:
-        return False
-    polut = ["/uutiset/", "/a/", "/urheilu/", "/kulttuuri/", "/novosti/", "/news/"]
-    ohita = ["/uutiset/paikallisuutiset", "/uutiset/yhteystiedot",
-             "yle.fi/t/", "areena.yle.fi", "/rss", "/opas",
-             "/lyhyet", "/tuoreimmat", "/selkouutiset",
-             "sanapyramidi", "futistietaja", "saavutettavuus",
-             "asiakaspalvelu", "yhteystiedot", "onelink.me",
-             "/abitreenit", "/elavaarkisto", "/oppiminen"]
-    if any(o in href for o in ohita):
-        return False
-    return any(p in href for p in polut)
+OHITA_URLIT = [
+    "/uutiset/paikallisuutiset", "/uutiset/yhteystiedot",
+    "yle.fi/t/", "areena.yle.fi", "/rss", "/opas",
+    "/lyhyet", "/tuoreimmat", "/selkouutiset",
+    "sanapyramidi", "futistietaja", "saavutettavuus",
+    "asiakaspalvelu", "yhteystiedot", "onelink.me",
+    "/abitreenit", "/elavaarkisto", "/oppiminen",
+    "/uutiset/lyhyesti",  # lyhyesti haetaan erikseen
+    "74-20131998",  # sanapyramidi id
+]
+
+def tunnista_osio(href):
+    """Tunnistaa uutisen osion URL-muodon perusteella."""
+    if "/uutiset/lyhyesti/" in href:
+        return "lyhyesti"
+    if "/a/74-" in href or "/a/3-" in href:
+        return "paasivu"
+    if "/urheilu/" in href:
+        return "paasivu"
+    if "/kulttuuri/" in href:
+        return "paasivu"
+    return "paasivu"
 
 def hae_etusivu_uutiset():
     headers = {
@@ -212,70 +220,73 @@ def hae_etusivu_uutiset():
     resp = session.get(YLE_ETUSIVU_URL, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
+
     tulokset = []
+    nahdyt_urlit = set()
     sijainti_per_osio = {}
 
-    def lisaa(a_elementti, osio):
-        href = a_elementti.get("href","")
+    # ── 1. Lyhyesti-osio (oma URL-muoto) ──
+    for a in soup.find_all("a", href=True):
+        href = a.get("href", "")
         if not href.startswith("http"):
             href = "https://yle.fi" + href
-        ots = a_elementti.get_text(strip=True)
-        if not ots or not on_uutislinkki(href):
-            return
-        sijainti_per_osio[osio] = sijainti_per_osio.get(osio, 0) + 1
-        tulokset.append({
-            "url": href,
-            "otsikko": ots,
-            "osio": osio,
-            "sijainti": sijainti_per_osio[osio]
-        })
-
-    # Käy kaikki linkit läpi ja luokittele osion mukaan
-    kaikki_linkit = soup.find_all("a", href=True)
-    
-    nahdyt_urlit = set()
-    for a in kaikki_linkit:
-        href = a.get("href","")
-        if not href.startswith("http"):
-            href = "https://yle.fi" + href
-        if not on_uutislinkki(href) or href in nahdyt_urlit:
+        if "/uutiset/lyhyesti/" not in href:
             continue
-        
         ots = a.get_text(strip=True)
-        if not ots or len(ots) < 5:
+        if not ots or len(ots) < 5 or href in nahdyt_urlit:
             continue
-
-        # Tunnista osio vanhempaelementtien perusteella
-        osio = "paasivu"
-        vanhemmat = a.find_parents()
-        for v in vanhemmat[:6]:
-            teksti = (v.get("class") or [])
-            teksti_str = " ".join(teksti).lower() if teksti else ""
-            aria = (v.get("aria-label") or "").lower()
-            h_tag = v.find(["h2","h3"])
-            h_teksti = h_tag.get_text(strip=True).lower() if h_tag else ""
-            
-            if "suosituimm" in teksti_str or "suosituimm" in aria or "suosituimm" in h_teksti:
-                osio = "suosituimmat"
-                break
-            elif "keskustell" in teksti_str or "keskustell" in aria or "keskustell" in h_teksti:
-                osio = "keskustellaan"
-                break
-            elif "tuoreim" in teksti_str or "tuoreim" in aria or "tuoreim" in h_teksti:
-                osio = "tuoreimmat"
-                break
-            elif "lyhyesti" in href or "lyhyesti" in teksti_str:
-                osio = "lyhyesti"
-                break
-
         nahdyt_urlit.add(href)
-        sijainti_per_osio[osio] = sijainti_per_osio.get(osio, 0) + 1
-        tulokset.append({
-            "url": href,
-            "otsikko": ots,
-            "osio": osio,
-            "sijainti": sijainti_per_osio[osio]
-        })
+        sijainti_per_osio["lyhyesti"] = sijainti_per_osio.get("lyhyesti", 0) + 1
+        tulokset.append({"url": href, "otsikko": ots,
+                         "osio": "lyhyesti",
+                         "sijainti": sijainti_per_osio["lyhyesti"]})
+
+    # ── 2. Suosituimmat ja Tuoreimmat (otsikon perusteella) ──
+    for h2 in soup.find_all("h2"):
+        teksti = h2.get_text(strip=True).lower()
+        if "suosituimm" in teksti or "tuoreim" in teksti:
+            osio = "suosituimmat" if "suosituimm" in teksti else "tuoreimmat"
+            # Etsi seuraavat linkit tämän otsikon jälkeen
+            for sibling in h2.find_next_siblings():
+                for a in sibling.find_all("a", href=True):
+                    href = a.get("href", "")
+                    if not href.startswith("http"):
+                        href = "https://yle.fi" + href
+                    if any(o in href for o in OHITA_URLIT):
+                        continue
+                    if "/a/74-" not in href and "/a/3-" not in href:
+                        continue
+                    ots = a.get_text(strip=True)
+                    if not ots or len(ots) < 5 or href in nahdyt_urlit:
+                        continue
+                    nahdyt_urlit.add(href)
+                    sijainti_per_osio[osio] = sijainti_per_osio.get(osio, 0) + 1
+                    tulokset.append({"url": href, "otsikko": ots,
+                                     "osio": osio,
+                                     "sijainti": sijainti_per_osio[osio]})
+                # Lopeta kun törmätään seuraavaan h2:een
+                if sibling.name == "h2":
+                    break
+
+    # ── 3. Pääsivu: kaikki muut /a/74- linkit ──
+    for a in soup.find_all("a", href=True):
+        href = a.get("href", "")
+        if not href.startswith("http"):
+            href = "https://yle.fi" + href
+        if href in nahdyt_urlit:
+            continue
+        if any(o in href for o in OHITA_URLIT):
+            continue
+        if "/a/74-" not in href and "/a/3-" not in href:
+            continue
+        ots = a.get_text(strip=True)
+        if not ots or len(ots) < 10:
+            continue
+        nahdyt_urlit.add(href)
+        sijainti_per_osio["paasivu"] = sijainti_per_osio.get("paasivu", 0) + 1
+        tulokset.append({"url": href, "otsikko": ots,
+                         "osio": "paasivu",
+                         "sijainti": sijainti_per_osio["paasivu"]})
 
     print(f"Etusivu: {len(tulokset)} havaintoa ({dict(sijainti_per_osio)})")
     return tulokset
