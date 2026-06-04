@@ -179,6 +179,20 @@ MAX_UUTISET_PER_AJO = None
 
 Tällä hetkellä Ylen uutisten kategoria (Kotimaa, Politiikka, Talous jne.) tunnistetaan vain otsikosta. Ylen sivusto lataa sisällön JavaScriptillä eikä kategoriaa saa suoraan HTML:stä tai RSS:stä. Jos Yle avaa tähän paremman API:n, voidaan aihetagi hakea suoraan Yleltä Claude-kategorisointia käyttämättä — säästäisi tokeneita.
 
+### Symmetrinen poliittinen analyysi
+
+Tällä hetkellä ryhmä 3 tunnistaa vain vasemmistolle epäedulliset uutiset. Jotta voidaan verrata paljonko Yle julkaisee vasemmistoa suosivia vs. oikeistoa suosivia uutisia, tarvitaan symmetrinen vastinpari — ryhmä 4: "Oikeistolle epäedullinen".
+
+Suunnitellut tagit:
+`oikeisto-tai-ps-epaonnistuu` `vasemmisto-tai-vihrea-onnistuu` `maahanmuutto-positiivinen` `ilmastotoimet-positiivinen` `trans-myonteinen` `pro-eu` `pro-nato` `ydinvoima-kriittinen` `anti-israel` `pro-palestiina`
+
+Tämän avulla voidaan tehdä aito vertailu:
+- Vasemmistoa suosivat vs. oikeistoa suosivat uutiset — lukumäärä ja näkyvyysajat
+- Julkaisuikkunavertailu molemmille ryhmille
+- Etusivulle pääsyprosentti kategorioittain
+
+Lisätään kun ryhmä 3 on todettu toimivaksi ja luotettavaksi.
+
 ### Pivot-tilastot
 
 Google Sheetsiin voidaan lisätä automaattiset pivot-taulut jotka laskevat:
