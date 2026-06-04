@@ -2,16 +2,17 @@
 """
 Yle-uutisseuranta — kaksivaiheinen analyysi
 ============================================
-Vaihe 1: Otsikon perusteella nopea kategorisointi (kaikki uutiset)
+Vaihe 1: Otsikon perusteella nopea kategorisointi (kaikki uutiset, Batch API)
 Vaihe 2: Artikkelin luku (vain jos vaihe 1 tunnistaa vasemmistolle epäedullisen signaalin)
 
 Välilehdet:
-  Raakadata   — jokainen havainto omana rivinään
-  Uutiskortti — yksi rivi per uutinen, päivittyy automaattisesti
+  Raakadata    — jokainen havainto omana rivinään
+  Uutiskortti  — yksi rivi per uutinen, päivittyy automaattisesti
+  Tilastot     — automaattiset yhteenvetotilastot
 """
 
-import os, json, time, requests, xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+import os, json, time, requests, xml.etree.ElementTree as ET, re
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 import gspread
@@ -33,9 +34,11 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 YLE_APP_ID        = os.environ["YLE_APP_ID"]
 YLE_APP_KEY       = os.environ["YLE_APP_KEY"]
 
-# ── Testirajoitus ────────────────────────────────────────────────────────────
-# Aseta None kun järjestelmä toimii vakaasti ja haluat seurata kaikkia uutisia
+# Testirajoitus — vaihda None:ksi kun järjestelmä toimii vakaasti
 MAX_UUTISET_PER_AJO = 10
+
+# Live-uutinen: jos julkaistu yli näin monta päivää sitten
+LIVEUUTINEN_RAJA_PV = 7
 
 AIKAIKKUNAT = {
     (6,9):"aamupiikki",(9,16):"tyopaiva",
@@ -46,7 +49,6 @@ VIIKONPAIVAT = ["maanantai","tiistai","keskiviikko","torstai","perjantai","lauan
 
 # ── Tagit ─────────────────────────────────────────────────────────────────────
 
-# VAIHE 1 — otsikosta pääteltävissä
 TAGIT_V1 = {
     "aihe": [
         "maahanmuutto","rikos","vakivalta","seksuaalirikos","terrorismi",
@@ -70,7 +72,6 @@ TAGIT_V1 = {
     ],
 }
 
-# VAIHE 2 — artikkelista, vain jos vaihe 1 antoi vasemmisto_epäedullinen-tagin
 TAGIT_V2 = {
     "kehystys_lisä": [
         "tausta-mainittu","tausta-ei-mainittu",
@@ -88,6 +89,37 @@ TAGIT_V2 = {
 
 KAIKKI_V1 = [t for g in TAGIT_V1.values() for t in g]
 KAIKKI_V2 = [t for g in TAGIT_V2.values() for t in g]
+
+# ── Aihehenkilöt — tekstihaku otsikosta ──────────────────────────────────────
+
+AIHEHENKILOT = {
+    "geopolitiikka": [
+        "nato","israel","palestiina","gaza","trump","biden",
+        "demokratit","republikaanit","ukraina","venäjä","putin","kiina","eu","yhdysvallat",
+    ],
+    "maahanmuutto": [
+        "turvapaikanhakija","pakolainen","maahanmuuttaja","käännytys","oleskelulupa",
+    ],
+    "puolueet_poliitikot": [
+        "kokoomus","sdp","perussuomalaiset","keskusta","vihreät",
+        "vasemmistoliitto","rkp","kd","orpo","lindtman","purra","haavisto",
+    ],
+    "identiteetti": [
+        "seta","trans","transsukupuoli","hlbtq","pride",
+    ],
+}
+
+def etsi_aihehenkilot(otsikko):
+    """Etsii otsikosta aihehenkilöt tekstihaulla."""
+    otsikko_lower = otsikko.lower()
+    loydetyt = []
+    for _, sanat in AIHEHENKILOT.items():
+        for sana in sanat:
+            if sana in otsikko_lower and sana not in loydetyt:
+                loydetyt.append(sana)
+    return ", ".join(loydetyt)
+
+# ── Muut vakiot ───────────────────────────────────────────────────────────────
 
 OHITA_URLIT = [
     "/uutiset/paikallisuutiset","/uutiset/yhteystiedot","yle.fi/t/",
@@ -107,7 +139,9 @@ RAAKA_OTSIKOT = [
     "aikaleima","url","otsikko","osio","sijainti",
     "julkaisuaika","julkaisuikkuna","viikonpaiva","etusivulla",
     "tagit_aihe","tagit_kehystys","tagit_vasemmisto_epäedullinen",
+    "tagit_aihehenkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
+    "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
     "varmuus","tarkistamatta","viive_julkaisusta_min",
 ]
 
@@ -119,7 +153,9 @@ KORTTI_OTSIKOT = [
     "paras_sijainti","huonoin_sijainti","keskisijainti","osiot_joissa_nahty",
     "etusivulla_koskaan","julkaistu_ei_nostettu",
     "tagit_aihe","tagit_kehystys","tagit_vasemmisto_epäedullinen",
+    "tagit_aihehenkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
+    "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
     "varmuus","tarkistamatta",
     "otsikko_alkuperainen","otsikko_nykyinen","muokattu_kertaa",
     "viimeisin_muutos","muutoshistoria",
@@ -147,6 +183,45 @@ def siivoa_url(url):
     return url
 
 def tagit_str(lista): return ", ".join(lista) if lista else ""
+
+# ── Live-uutinen tunnistus ────────────────────────────────────────────────────
+
+def tarkista_liveuutinen(url, julkaisuaika_str, nyt):
+    """
+    Tarkistaa onko uutinen mahdollinen live-uutinen.
+    Hakee modified_time meta-tagin jos julkaistu yli LIVEUUTINEN_RAJA_PV päivää sitten.
+    Palauttaa (mahdollinen_liveuutinen, viimeisin_paivitys, paivitysviive_pv)
+    """
+    if not julkaisuaika_str:
+        return "ei", "", ""
+
+    pub_dt = parse_dt(julkaisuaika_str)
+    if not pub_dt:
+        return "ei", "", ""
+
+    viive_pv = (nyt - pub_dt).days
+    if viive_pv < LIVEUUTINEN_RAJA_PV:
+        return "ei", "", ""
+
+    # Haetaan modified_time artikkelin sivulta
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Accept-Language": "fi-FI,fi;q=0.9",
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        meta = soup.find("meta", {"property": "article:modified_time"})
+        if meta and meta.get("content"):
+            mod_str = meta["content"]
+            # Muunna ISO-formaatista
+            mod_dt = datetime.fromisoformat(mod_str).astimezone(HELSINKI)
+            mod_str_clean = mod_dt.strftime("%Y-%m-%d %H:%M")
+            return "kyllä", mod_str_clean, viive_pv
+    except Exception as e:
+        print(f"Live-tarkistusvirhe ({url}): {e}")
+
+    return "ei", "", ""
 
 # ── RSS ───────────────────────────────────────────────────────────────────────
 
@@ -197,7 +272,6 @@ def hae_etusivu_uutiset():
     nahdyt = set()
     sijainti_per_osio = {}
 
-    # 1. Lyhyesti
     for a in soup.find_all("a", href=True):
         href = siivoa_url(a.get("href",""))
         if not href.startswith("http"): href = "https://yle.fi" + href
@@ -209,7 +283,6 @@ def hae_etusivu_uutiset():
         sijainti_per_osio["lyhyesti"] = sijainti_per_osio.get("lyhyesti",0)+1
         tulokset.append({"url":href,"otsikko":ots,"osio":"lyhyesti","sijainti":sijainti_per_osio["lyhyesti"]})
 
-    # 2. Suosituimmat ja Tuoreimmat
     for h2 in soup.find_all("h2"):
         t = h2.get_text(strip=True).lower()
         if "suosituimm" in t or "tuoreim" in t:
@@ -228,7 +301,6 @@ def hae_etusivu_uutiset():
                     tulokset.append({"url":href,"otsikko":ots,"osio":osio,"sijainti":sijainti_per_osio[osio]})
                 if sib.name == "h2": break
 
-    # 3. Pääsivu
     for a in soup.find_all("a", href=True):
         href = siivoa_url(a.get("href",""))
         if not href.startswith("http"): href = "https://yle.fi" + href
@@ -245,24 +317,16 @@ def hae_etusivu_uutiset():
     print(f"Etusivu: {len(tulokset)} havaintoa {dict(sijainti_per_osio)}")
     return tulokset
 
-# ── Kategorisointi — Vaihe 1 (otsikko, Batch API) ────────────────────────────
+# ── Kategorisointi Vaihe 1 (Batch API) ───────────────────────────────────────
 
 def tee_batch_kategoriointi_v1(otsikot_dict):
-    """
-    otsikot_dict = {url: otsikko}
-    Palauttaa {url: {aihe:[], kehystys:[], vasemmisto_epäedullinen:[], varmuus:int}}
-    """
     if not otsikot_dict:
         return {}
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
     tagit_v1_str = json.dumps(TAGIT_V1, ensure_ascii=False)
-
-    # Rakennetaan batch-pyynnöt
     requests_list = []
     url_jarjestys = list(otsikot_dict.keys())
-    # Luo lyhyet tunnisteet URL:ien sijaan (max 64 merkkiä, vain a-z0-9_-)
     url_to_id = {url: f"uutinen_{i}" for i, url in enumerate(url_jarjestys)}
     id_to_url = {v: k for k, v in url_to_id.items()}
 
@@ -289,13 +353,11 @@ Tagit: {tagit_v1_str}
             }
         })
 
-    # Lähetä batch
     print(f"Lähetetään batch: {len(requests_list)} uutista...")
     batch = client.messages.batches.create(requests=requests_list)
     batch_id = batch.id
     print(f"Batch ID: {batch_id}")
 
-    # Odota valmistumista (max 10 min)
     for _ in range(60):
         time.sleep(10)
         status = client.messages.batches.retrieve(batch_id)
@@ -303,7 +365,6 @@ Tagit: {tagit_v1_str}
         if status.processing_status == "ended":
             break
 
-    # Hae tulokset
     tulokset = {}
     for result in client.messages.batches.results(batch_id):
         url = id_to_url.get(result.custom_id, result.custom_id)
@@ -312,7 +373,6 @@ Tagit: {tagit_v1_str}
                 teksti = result.result.message.content[0].text
                 teksti = teksti.replace("```json","").replace("```","").strip()
                 data = json.loads(teksti)
-                # Validointi
                 for ryhmä in ["aihe","kehystys","vasemmisto_epäedullinen"]:
                     data[ryhmä] = [t for t in data.get(ryhmä,[]) if t in KAIKKI_V1]
                 tulokset[url] = data
@@ -324,10 +384,9 @@ Tagit: {tagit_v1_str}
 
     return tulokset
 
-# ── Kategorisointi — Vaihe 2 (artikkeli, yksittäinen kutsu) ──────────────────
+# ── Kategorisointi Vaihe 2 (artikkeli) ───────────────────────────────────────
 
 def hae_artikkeli_teksti(url):
-    """Hakee artikkelin tekstisisällön."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
         "Accept-Language": "fi-FI,fi;q=0.9",
@@ -336,20 +395,16 @@ def hae_artikkeli_teksti(url):
         resp = requests.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
-        # Poista skriptit ja tyylit
         for tag in soup(["script","style","nav","footer","header"]):
             tag.decompose()
-        # Hae artikkelin pääsisältö
         main = soup.find("main") or soup.find("article") or soup
         teksti = main.get_text(separator=" ", strip=True)
-        # Rajoita 3000 merkkiin
         return teksti[:3000]
     except Exception as e:
         print(f"Artikkelinhakuvirhe ({url}): {e}")
         return ""
 
 def kategorisoi_artikkeli_v2(url, otsikko, v1_data):
-    """Vaihe 2: lukee artikkelin ja täydentää tageja."""
     teksti = hae_artikkeli_teksti(url)
     if not teksti:
         return {"kehystys_lisä":[],"vasemmisto_epäedullinen_lisä":[]}
@@ -398,13 +453,10 @@ def yhdista():
 def hae_tai_luo_ws(sheet, nimi, otsikot):
     try:
         ws = sheet.worksheet(nimi)
-        arvot = ws.get_all_values()
-        # Luo otsikot jos Sheet on tyhjä tai ensimmäinen rivi ei täsmää
-        if not arvot or arvot[0] != otsikot:
-            ws.clear()
+        if not ws.get_all_values():
             ws.append_row(otsikot)
     except gspread.WorksheetNotFound:
-        ws = sheet.add_worksheet(title=nimi, rows=10000, cols=len(otsikot))
+        ws = sheet.add_worksheet(title=nimi, rows=10000, cols=max(len(otsikot), 30))
         ws.append_row(otsikot)
     return ws
 
@@ -416,9 +468,122 @@ def lue_kortit(ws):
         if url: kortit[url] = {"_rivi":i, **r}
     return kortit
 
-# ── Uutiskortti ───────────────────────────────────────────────────────────────
+# ── Tilastovälilehti ──────────────────────────────────────────────────────────
 
-def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2, vanha=None):
+def paivita_tilastot(sheet, ws_kortti):
+    """Luo tai päivittää Tilastot-välilehden."""
+    try:
+        ws_tilastot = sheet.worksheet("Tilastot")
+        ws_tilastot.clear()
+    except gspread.WorksheetNotFound:
+        ws_tilastot = sheet.add_worksheet(title="Tilastot", rows=200, cols=10)
+
+    kortit = ws_kortti.get_all_records()
+    if not kortit:
+        return
+
+    nyt = datetime.now(HELSINKI)
+    tanaan = nyt.strftime("%Y-%m-%d")
+    viikko_sitten = (nyt - timedelta(days=7)).strftime("%Y-%m-%d %H:%M")
+
+    # ── Laskennat ──
+    yhteensa = len(kortit)
+    tanaan_n = sum(1 for k in kortit if k.get("paivitetty","")[:10] == tanaan)
+    viikolla_n = sum(1 for k in kortit if k.get("paivitetty","") >= viikko_sitten)
+    ei_etusivulle = sum(1 for k in kortit if k.get("julkaistu_ei_nostettu") == "kyllä")
+    otsikko_muutettu = sum(1 for k in kortit if int(k.get("muokattu_kertaa") or 0) > 0)
+    liveuutisia = sum(1 for k in kortit if k.get("mahdollinen_liveuutinen") == "kyllä")
+    epaedullisia = sum(1 for k in kortit if k.get("tagit_vasemmisto_epäedullinen",""))
+
+    # Näkyvyysajat per aihetagi
+    aihe_nakyvyys = {}
+    aihe_lkm = {}
+    for k in kortit:
+        if k.get("mahdollinen_liveuutinen") == "kyllä": continue
+        nakyvyys = k.get("nakyvyys_tunnit","")
+        if not nakyvyys: continue
+        try: nakyvyys_f = float(nakyvyys)
+        except: continue
+        tagit = [t.strip() for t in k.get("tagit_aihe","").split(",") if t.strip()]
+        for tagi in tagit:
+            aihe_nakyvyys[tagi] = aihe_nakyvyys.get(tagi, 0) + nakyvyys_f
+            aihe_lkm[tagi] = aihe_lkm.get(tagi, 0) + 1
+
+    # Julkaisuikkunajakauma epäedullisille vs muille
+    ikkuna_epa = {}
+    ikkuna_muut = {}
+    for k in kortit:
+        ikkuna = k.get("julkaisuikkuna","")
+        if not ikkuna: continue
+        if k.get("tagit_vasemmisto_epäedullinen",""):
+            ikkuna_epa[ikkuna] = ikkuna_epa.get(ikkuna, 0) + 1
+        else:
+            ikkuna_muut[ikkuna] = ikkuna_muut.get(ikkuna, 0) + 1
+
+    # Suosituimmat vs pääsivu -ristiriita
+    ristiriita = [
+        k for k in kortit
+        if "suosituimmat" in k.get("osiot_joissa_nahty","")
+        and "paasivu" not in k.get("osiot_joissa_nahty","")
+    ]
+
+    # ── Kirjoita tilastot ──
+    rivit = []
+
+    rivit.append([f"Päivitetty: {nyt.strftime('%Y-%m-%d %H:%M')}", ""])
+    rivit.append(["", ""])
+
+    rivit.append(["═══ YLEISKATSAUS ═══", ""])
+    rivit.append(["Uutisia seurattu yhteensä", yhteensa])
+    rivit.append(["Uutisia tänään päivitetty", tanaan_n])
+    rivit.append(["Uutisia viimeisen 7 pv aikana", viikolla_n])
+    rivit.append(["Julkaistu mutta ei nostettu etusivulle", ei_etusivulle])
+    rivit.append(["Otsikkoa muutettu jälkikäteen", otsikko_muutettu])
+    rivit.append(["Mahdollisia live-uutisia", liveuutisia])
+    rivit.append(["Vasemmistolle epäedullisia uutisia", epaedullisia])
+    rivit.append(["", ""])
+
+    rivit.append(["═══ NÄKYVYYSAIKA KATEGORIOITTAIN (tuntia, ka) ═══", ""])
+    rivit.append(["Kategoria", "Keskiarvo (h)", "Uutisia"])
+    for tagi in sorted(aihe_lkm.keys()):
+        if aihe_lkm[tagi] > 0:
+            ka = round(aihe_nakyvyys[tagi] / aihe_lkm[tagi], 1)
+            rivit.append([tagi, ka, aihe_lkm[tagi]])
+    rivit.append(["", ""])
+
+    rivit.append(["═══ ILTA-HYPOTEESI: Julkaisuikkuna vs. etusivulle pääsy ═══", ""])
+    rivit.append(["Aikaikkuna", "Epäedulliset uutiset", "Muut uutiset"])
+    for ikkuna in ["aamupiikki","tyopaiva","iltapaivapiikki","ilta","yo"]:
+        rivit.append([ikkuna, ikkuna_epa.get(ikkuna,0), ikkuna_muut.get(ikkuna,0)])
+    rivit.append(["", ""])
+
+    rivit.append(["═══ SUOSITUIMMAT vs. PÄÄSIVU (ristiriita) ═══", ""])
+    rivit.append(["Uutisia suosituimmissa mutta ei pääsivulla", len(ristiriita)])
+    if ristiriita:
+        rivit.append(["Otsikko", "Näkyvyys (h)"])
+        for k in ristiriita[:10]:
+            rivit.append([k.get("otsikko","")[:80], k.get("nakyvyys_tunnit","")])
+    rivit.append(["", ""])
+
+    rivit.append(["═══ OTSIKKOMUUTOKSET ═══", ""])
+    muutetut = [k for k in kortit if int(k.get("muokattu_kertaa") or 0) > 0]
+    if muutetut:
+        rivit.append(["Alkuperäinen otsikko", "Nykyinen otsikko", "Muokattu kertaa", "Viimeisin muutos"])
+        for k in muutetut[:20]:
+            rivit.append([
+                k.get("otsikko_alkuperainen","")[:60],
+                k.get("otsikko_nykyinen","")[:60],
+                k.get("muokattu_kertaa",""),
+                k.get("viimeisin_muutos",""),
+            ])
+
+    ws_tilastot.append_rows(rivit, value_input_option="USER_ENTERED")
+    print(f"Tilastot päivitetty: {len(rivit)} riviä")
+
+# ── Uutiskortti-laskenta ──────────────────────────────────────────────────────
+
+def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
+                 aihehenkilot, live_data, vanha=None):
     nyt_dt = parse_dt(nyt_str)
     julkaisuaika   = rss.get("julkaisuaika","") if rss else ""
     julkaisuikkuna = rss.get("julkaisuikkuna","") if rss else ""
@@ -429,11 +594,15 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2, vanha=None)
     tagit_keh  = tagit_str(kat.get("kehystys",[]))
     tagit_vas  = tagit_str(kat.get("vasemmisto_epäedullinen",[]))
     varmuus    = kat.get("varmuus", 0)
-    vaihe2_tehty   = "kyllä" if v2 else "ei"
+
+    vaihe2_tehty     = "kyllä" if v2 else "ei"
     vaihe2_lisatagit = ""
     if v2:
         kaikki_v2 = v2.get("kehystys_lisä",[]) + v2.get("vasemmisto_epäedullinen_lisä",[])
         vaihe2_lisatagit = tagit_str(kaikki_v2)
+
+    mahdollinen_live, viimeisin_paivitys, paivitysviive = live_data
+
     tarkistamatta = "kyllä" if (varmuus < 70 or kat.get("vasemmisto_epäedullinen")) else "ei"
 
     if vanha:
@@ -455,10 +624,14 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2, vanha=None)
         etusivulla_koskaan    = "kyllä" if (vanha.get("etusivulla_koskaan")=="kyllä" or etusivulla_nyt) else "ei"
         julkaistu_ei_nostettu = "ei" if etusivulla_koskaan=="kyllä" else "kyllä"
         tarkistamatta = vanha.get("tarkistamatta","kyllä") if vanha.get("tarkistamatta")=="ei" else tarkistamatta
-        # Vaihe 2 — säilytä aiempi tieto
         if vanha.get("vaihe2_tehty") == "kyllä":
-            vaihe2_tehty = "kyllä"
+            vaihe2_tehty     = "kyllä"
             vaihe2_lisatagit = vanha.get("vaihe2_lisatagit","")
+        # Säilytä live-tieto jos jo tarkistettu
+        if vanha.get("mahdollinen_liveuutinen") == "kyllä":
+            mahdollinen_live  = "kyllä"
+            viimeisin_paivitys = vanha.get("viimeisin_paivitys", viimeisin_paivitys)
+            paivitysviive      = vanha.get("paivitysviive_pv", paivitysviive)
     else:
         ensimmainen = nyt_str if etusivulla_nyt else ""
         viimeinen   = nyt_str if etusivulla_nyt else ""
@@ -521,7 +694,9 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2, vanha=None)
         paras, huonoin, keski_n, kaikki_osiot,
         etusivulla_koskaan, julkaistu_ei_nostettu,
         tagit_aihe, tagit_keh, tagit_vas,
+        aihehenkilot,
         vaihe2_tehty, vaihe2_lisatagit,
+        mahdollinen_live, viimeisin_paivitys, paivitysviive,
         varmuus, tarkistamatta,
         otsikko_alkuperainen, otsikko_nykyinen,
         muokattu_kertaa, viimeisin_muutos, muutoshistoria,
@@ -543,7 +718,6 @@ def main():
     ws_kortti = hae_tai_luo_ws(sheet, "Uutiskortti", KORTTI_OTSIKOT)
     kortit    = lue_kortit(ws_kortti)
 
-    # Aiemmin kategorisoidut
     kategorisoidut = {}
     for url, k in kortit.items():
         if k.get("tagit_aihe") or k.get("tagit_kehystys"):
@@ -560,7 +734,6 @@ def main():
 
     kaikki_urlit = set(etusivu_per_url.keys()) | set(rss_uutiset.keys())
 
-    # Selvitä mitkä tarvitsevat kategorisointia
     tarvitsee_v1 = {
         url: (etusivu_per_url.get(url,[{}])[0].get("otsikko") or rss_uutiset.get(url,{}).get("otsikko",""))
         for url in kaikki_urlit
@@ -568,18 +741,15 @@ def main():
     }
     tarvitsee_v1 = {k:v for k,v in tarvitsee_v1.items() if v}
 
-    # Rajoita uutismäärä testivaiheessa
     if MAX_UUTISET_PER_AJO and len(tarvitsee_v1) > MAX_UUTISET_PER_AJO:
         print(f"Rajoitetaan {len(tarvitsee_v1)} → {MAX_UUTISET_PER_AJO} uutiseen (testirajoitus)")
         tarvitsee_v1 = dict(list(tarvitsee_v1.items())[:MAX_UUTISET_PER_AJO])
 
-    # Vaihe 1 — Batch API
     uudet_kategoriat = {}
     if tarvitsee_v1:
         print(f"\nVaihe 1: {len(tarvitsee_v1)} uutta uutista kategorisoidaan...")
         uudet_kategoriat = tee_batch_kategoriointi_v1(tarvitsee_v1)
 
-    # Vaihe 2 — artikkelin luku herkille uutisille
     v2_tulokset = {}
     for url, kat in uudet_kategoriat.items():
         if kat.get("vasemmisto_epäedullinen"):
@@ -587,7 +757,6 @@ def main():
             v2_tulokset[url] = kategorisoi_artikkeli_v2(url, tarvitsee_v1[url], kat)
             time.sleep(0.5)
 
-    # Rakenna rivit
     raaka_rivit     = []
     kortti_uudet    = []
     kortti_paivitys = []
@@ -606,44 +775,55 @@ def main():
         tagit_keh  = tagit_str(kat.get("kehystys",[]))
         tagit_vas  = tagit_str(kat.get("vasemmisto_epäedullinen",[]))
         varmuus    = kat.get("varmuus",0)
-        vaihe2_tehty = "kyllä" if v2 else "ei"
+        aihehenkilot = etsi_aihehenkilot(otsikko)
+
+        vaihe2_tehty     = "kyllä" if v2 else "ei"
         vaihe2_lisatagit = ""
         if v2:
             kaikki_v2 = v2.get("kehystys_lisä",[]) + v2.get("vasemmisto_epäedullinen_lisä",[])
             vaihe2_lisatagit = tagit_str(kaikki_v2)
+
         tarkistamatta = "kyllä" if (varmuus < 70 or kat.get("vasemmisto_epäedullinen")) else "ei"
+
+        # Live-uutinen tarkistus
+        julkaisuaika = rss.get("julkaisuaika","")
+        live_data = tarkista_liveuutinen(url, julkaisuaika, nyt)
 
         if havainnot:
             for h in havainnot:
                 viive_min = ""
-                if rss.get("julkaisuaika"):
-                    dt_pub = parse_dt(rss["julkaisuaika"])
+                if julkaisuaika:
+                    dt_pub = parse_dt(julkaisuaika)
                     if dt_pub: viive_min = int((nyt-dt_pub).total_seconds()/60)
                 raaka_rivit.append([
                     nyt_str, url, otsikko, h["osio"], h["sijainti"],
-                    rss.get("julkaisuaika",""), rss.get("julkaisuikkuna",""),
+                    julkaisuaika, rss.get("julkaisuikkuna",""),
                     rss.get("viikonpaiva",""), "kyllä",
-                    tagit_aihe, tagit_keh, tagit_vas,
+                    tagit_aihe, tagit_keh, tagit_vas, aihehenkilot,
                     vaihe2_tehty, vaihe2_lisatagit,
+                    live_data[0], live_data[1], live_data[2],
                     varmuus, tarkistamatta, viive_min,
                 ])
         else:
             raaka_rivit.append([
                 nyt_str, url, otsikko, "ei_etusivulla", "",
-                rss.get("julkaisuaika",""), rss.get("julkaisuikkuna",""),
+                julkaisuaika, rss.get("julkaisuikkuna",""),
                 rss.get("viikonpaiva",""), "ei",
-                tagit_aihe, tagit_keh, tagit_vas,
+                tagit_aihe, tagit_keh, tagit_vas, aihehenkilot,
                 vaihe2_tehty, vaihe2_lisatagit,
+                live_data[0], live_data[1], live_data[2],
                 varmuus, tarkistamatta, "",
             ])
 
-        korttiarvo = laske_kortti(url, otsikko, rss, havainnot, nyt_str, kat, v2, vanha=kortit.get(url))
+        korttiarvo = laske_kortti(
+            url, otsikko, rss, havainnot, nyt_str, kat, v2,
+            aihehenkilot, live_data, vanha=kortit.get(url)
+        )
         if url in kortit:
             kortti_paivitys.append((kortit[url]["_rivi"], korttiarvo))
         else:
             kortti_uudet.append(korttiarvo)
 
-    # Tallenna
     if raaka_rivit:
         ws_raaka.append_rows(raaka_rivit, value_input_option="USER_ENTERED")
         print(f"Raakadata: +{len(raaka_rivit)} riviä")
@@ -670,6 +850,11 @@ def main():
             )
             time.sleep(1.2)
         print(f"Uutiskortti: {len(kortti_paivitys)} päivitetty")
+
+    # Päivitä tilastovälilehti
+    print("\nPäivitetään tilastot...")
+    paivita_tilastot(sheet, ws_kortti)
+    time.sleep(2)
 
     print(f"\n✅ Valmis! {nyt_str}")
 
