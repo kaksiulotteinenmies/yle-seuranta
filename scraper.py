@@ -270,6 +270,10 @@ def tee_batch_kategoriointi_v1(otsikot_dict):
         otsikko = otsikot_dict[url]
         prompt = f"""Kategorisoi uutisotsikko. Valitse tagit VAIN alla olevasta listasta. Vastaa AINOASTAAN JSON-muodossa.
 
+TÄRKEÄT OHJEET:
+- Käytä `tekija-*` ja `kohde-*` tageja AINOASTAAN rikos-, väkivalta- tai onnettomuusuutisissa joissa on selkeä tekijä tai uhri. ÄLÄ käytä näitä urheilussa, politiikassa tai muissa neutraaleissa uutisissa.
+- Käytä `vasemmisto-tai-vihrea-epaonnistuu` ja `ps-tai-oikeisto-onnistuu` tageja VAIN selkeissä poliittisissa skandaaleissa tai epäonnistumisissa — EI tavallisessa kriittisessä journalismissa tai puolueita analysoivissa uutisissa.
+
 Otsikko: "{otsikko}"
 
 Tagit: {tagit_v1_str}
