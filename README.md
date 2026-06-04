@@ -56,6 +56,18 @@ Yksi rivi per uutinen. Päivittyy automaattisesti joka skannauksen yhteydessä.
 | `tarkistamatta` | kyllä = kannattaa tarkistaa manuaalisesti |
 | `otsikko_alkuperainen` | Ensimmäinen otsikko — ei muutu koskaan |
 | `muutoshistoria` | Kaikki otsikkomuutokset aikaleimoineen ja tagimuutoksineen |
+| `tagit_aihehenkilot` | Otsikosta poimitut aihehenkilöt ja teemat (tekstihaku) |
+| `mahdollinen_liveuutinen` | kyllä = julkaistu yli 7 pv sitten mutta päivitetty äskettäin |
+| `viimeisin_paivitys` | Milloin artikkelia viimeksi muokattu |
+| `paivitysviive_pv` | Päiviä julkaisusta viimeisimpään päivitykseen |
+
+### Välilehti 3: Tilastot
+Päivittyy automaattisesti joka ajon yhteydessä. Sisältää:
+- Yleiskatsaus (uutisten määrät, live-uutiset, otsikkomuutokset)
+- Näkyvyysajat kategorioittain
+- Ilta-hypoteesi: julkaisuikkunajakauma epäedulliset vs. muut
+- Suosituimmat vs. pääsivu -ristiriita
+- Lista muutetuista otsikoista
 
 ---
 
