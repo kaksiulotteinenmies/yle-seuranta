@@ -548,14 +548,20 @@ def paivita_tilastot(sheet, ws_kortti):
             aihe_nakyvyys[tagi] = aihe_nakyvyys.get(tagi, 0) + nakyvyys_f
             aihe_lkm[tagi] = aihe_lkm.get(tagi, 0) + 1
 
-    # Julkaisuikkunajakauma epäedullisille vs muille
-    ikkuna_epa = {}
+    # Julkaisuikkunajakauma — vasemmisto-epäed, oikeisto-epäed, muut
+    ikkuna_vas = {}
+    ikkuna_oik = {}
     ikkuna_muut = {}
     for k in kortit:
         ikkuna = k.get("julkaisuikkuna","")
         if not ikkuna: continue
-        if k.get("tagit_poliittinen_signaali",""):
-            ikkuna_epa[ikkuna] = ikkuna_epa.get(ikkuna, 0) + 1
+        pol = set(t.strip() for t in k.get("tagit_poliittinen_signaali","").split(",") if t.strip())
+        on_vas = bool(pol & vas_tagit)
+        on_oik = bool(pol & oik_tagit)
+        if on_vas:
+            ikkuna_vas[ikkuna] = ikkuna_vas.get(ikkuna, 0) + 1
+        elif on_oik:
+            ikkuna_oik[ikkuna] = ikkuna_oik.get(ikkuna, 0) + 1
         else:
             ikkuna_muut[ikkuna] = ikkuna_muut.get(ikkuna, 0) + 1
 
@@ -607,9 +613,9 @@ def paivita_tilastot(sheet, ws_kortti):
     rivit.append(["", ""])
 
     rivit.append(["═══ ILTA-HYPOTEESI: Julkaisuikkuna vs. etusivulle pääsy ═══", ""])
-    rivit.append(["Aikaikkuna", "Epäedulliset uutiset", "Muut uutiset"])
+    rivit.append(["Aikaikkuna", "Vasemmistolle epäed.", "Oikeistolle epäed.", "Muut uutiset"])
     for ikkuna in ["aamupiikki","tyopaiva","iltapaivapiikki","ilta","yo"]:
-        rivit.append([ikkuna, ikkuna_epa.get(ikkuna,0), ikkuna_muut.get(ikkuna,0)])
+        rivit.append([ikkuna, ikkuna_vas.get(ikkuna,0), ikkuna_oik.get(ikkuna,0), ikkuna_muut.get(ikkuna,0)])
     rivit.append(["", ""])
 
     rivit.append(["═══ SUOSITUIMMAT vs. PÄÄSIVU (ristiriita) ═══", ""])
