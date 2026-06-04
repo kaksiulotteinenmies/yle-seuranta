@@ -262,6 +262,9 @@ def tee_batch_kategoriointi_v1(otsikot_dict):
     # Rakennetaan batch-pyynnöt
     requests_list = []
     url_jarjestys = list(otsikot_dict.keys())
+    # Luo lyhyet tunnisteet URL:ien sijaan (max 64 merkkiä, vain a-z0-9_-)
+    url_to_id = {url: f"uutinen_{i}" for i, url in enumerate(url_jarjestys)}
+    id_to_url = {v: k for k, v in url_to_id.items()}
 
     for url in url_jarjestys:
         otsikko = otsikot_dict[url]
@@ -274,7 +277,7 @@ Tagit: {tagit_v1_str}
 {{"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"varmuus":0}}"""
 
         requests_list.append({
-            "custom_id": url,
+            "custom_id": url_to_id[url],
             "params": {
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 200,
@@ -299,7 +302,7 @@ Tagit: {tagit_v1_str}
     # Hae tulokset
     tulokset = {}
     for result in client.messages.batches.results(batch_id):
-        url = result.custom_id
+        url = id_to_url.get(result.custom_id, result.custom_id)
         try:
             if result.result.type == "succeeded":
                 teksti = result.result.message.content[0].text
