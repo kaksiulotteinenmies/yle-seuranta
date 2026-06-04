@@ -61,14 +61,20 @@ TAGIT_V1 = {
         "tekija-maahanmuuttaja","tekija-kantasuomalainen","tekija-tuntematon","tekija-alaikainen",
         "kohde-nainen","kohde-mies","kohde-lapsi","kohde-virkavalta",
         "poliitikko-vasemmisto","poliitikko-oikeisto","poliitikko-kepu",
-        "poliitikko-aarioikeisto","poliitikko-äärivasemmisto",
+        "aarioikeisto","äärivasemmisto",
         "tilasto","yksittaistapaus",
     ],
-    "vasemmisto_epäedullinen": [
+    "poliittinen_signaali": [
+        # Vasemmistolle epäedulliset
         "maahanmuuttaja-rikoksentekija","turvapaikanhakija-ongelmat",
         "ps-tai-oikeisto-onnistuu","vasemmisto-tai-vihrea-epaonnistuu",
         "ydinvoima-positiivinen","trans-kriittinen",
         "anti-nato","anti-eu","pro-israel","anti-palestiina",
+        # Oikeistolle epäedulliset
+        "maahanmuutto-positiivinen","oikeisto-tai-ps-epaonnistuu",
+        "vasemmisto-tai-vihrea-onnistuu","ydinvoima-kriittinen",
+        "ilmastotoimet-positiivinen","trans-myonteinen",
+        "pro-nato","pro-eu","anti-israel","pro-palestiina",
     ],
 }
 
@@ -79,7 +85,7 @@ TAGIT_V2 = {
         "lahde-vain-viranomainen","lahde-monipuolinen",
         "painotus-oikeistokriittinen","painotus-vasemmistokriittinen",
     ],
-    "vasemmisto_epäedullinen_lisä": [
+    "poliittinen_signaali_lisä": [
         "integraatio-epaonnistuminen","islam-ongelmat-suomessa",
         "rinnakkaisyhteiskunta","maahanmuuton-kustannukset",
         "ilmastopolitiikka-kustannukset","vihrea-siirtyman-ongelmat",
@@ -140,7 +146,7 @@ OHITA_OTSIKOT = [
 RAAKA_OTSIKOT = [
     "aikaleima","url","otsikko","osio","sijainti",
     "julkaisuaika","julkaisuikkuna","viikonpaiva","etusivulla",
-    "tagit_aihe","tagit_kehystys","tagit_vasemmisto_epäedullinen",
+    "tagit_aihe","tagit_kehystys","tagit_poliittinen_signaali",
     "tagit_aihehenkilot","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
@@ -154,7 +160,7 @@ KORTTI_OTSIKOT = [
     "nakyvyys_tunnit","havaintoja_yhteensa",
     "paras_sijainti","huonoin_sijainti","keskisijainti","osiot_joissa_nahty",
     "etusivulla_koskaan","julkaistu_ei_nostettu",
-    "tagit_aihe","tagit_kehystys","tagit_vasemmisto_epäedullinen",
+    "tagit_aihe","tagit_kehystys","tagit_poliittinen_signaali",
     "tagit_aihehenkilot","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
@@ -361,14 +367,14 @@ TÄRKEÄT OHJEET:
 - Käytä `tekija-*` ja `kohde-*` tageja AINOASTAAN rikos-, väkivalta- tai onnettomuusuutisissa joissa on selkeä tekijä tai uhri. ÄLÄ käytä näitä urheilussa, politiikassa tai muissa neutraaleissa uutisissa.
 - Käytä `kohde-lapsi` VAIN jos lapsi on rikoksen tai väkivallan uhri. ÄLÄ käytä jos lapsi tai alaikäinen on epäilty tai tekijä — silloin käytä `tekija-alaikainen`.
 - Käytä `tekija-tuntematon` VAIN jos tekijää ei ole mainittu eikä vihjattu. Jos otsikossa sanotaan esim. "poliisi epäilee alaikäistä", käytä `tekija-alaikainen` eikä `tekija-tuntematon`.
-- Käytä `vasemmisto-tai-vihrea-epaonnistuu` ja `ps-tai-oikeisto-onnistuu` tageja VAIN selkeissä poliittisissa skandaaleissa tai epäonnistumisissa — EI tavallisessa kriittisessä journalismissa tai puolueita analysoivissa uutisissa.
+- Käytä `vasemmisto-tai-vihrea-epaonnistuu`, `ps-tai-oikeisto-onnistuu`, `vasemmisto-tai-vihrea-onnistuu` ja `oikeisto-tai-ps-epaonnistuu` tageja VAIN selkeissä poliittisissa skandaaleissa tai epäonnistumisissa — EI tavallisessa kriittisessä journalismissa tai puolueita analysoivissa uutisissa.
 - Tunnista `henkilot`-kenttään kaikki otsikossa mainitut henkilönnimet. Normalisoi nimet perusmuotoon (nominatiivi) — esim. "Häkkisen" → "Häkkinen", "Orpolle" → "Orpo". Lista voi olla tyhjä.
 
 Otsikko: "{otsikko}"
 
 Tagit: {tagit_v1_str}
 
-{{"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"henkilot":[],"varmuus":0}}"""
+{{"aihe":[],"kehystys":[],"poliittinen_signaali":[],"henkilot":[],"varmuus":0}}"""
 
         requests_list.append({
             "custom_id": url_to_id[url],
@@ -399,15 +405,15 @@ Tagit: {tagit_v1_str}
                 teksti = result.result.message.content[0].text
                 teksti = teksti.replace("```json","").replace("```","").strip()
                 data = json.loads(teksti)
-                for ryhmä in ["aihe","kehystys","vasemmisto_epäedullinen"]:
+                for ryhmä in ["aihe","kehystys","poliittinen_signaali"]:
                     data[ryhmä] = [t for t in data.get(ryhmä,[]) if t in KAIKKI_V1]
                 data["henkilot"] = [h.strip() for h in data.get("henkilot",[]) if h.strip()]
                 tulokset[url] = data
             else:
-                tulokset[url] = {"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"varmuus":0}
+                tulokset[url] = {"aihe":[],"kehystys":[],"poliittinen_signaali":[],"varmuus":0}
         except Exception as e:
             print(f"Parsintavirhe ({url}): {e}")
-            tulokset[url] = {"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"varmuus":0}
+            tulokset[url] = {"aihe":[],"kehystys":[],"poliittinen_signaali":[],"varmuus":0}
 
     return tulokset
 
@@ -434,7 +440,7 @@ def hae_artikkeli_teksti(url):
 def kategorisoi_artikkeli_v2(url, otsikko, v1_data):
     teksti = hae_artikkeli_teksti(url)
     if not teksti:
-        return {"kehystys_lisä":[],"vasemmisto_epäedullinen_lisä":[]}
+        return {"kehystys_lisä":[],"poliittinen_signaali_lisä":[]}
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     tagit_v2_str = json.dumps(TAGIT_V2, ensure_ascii=False)
@@ -451,7 +457,7 @@ Artikkeli: "{teksti}"
 
 Tagit: {tagit_v2_str}
 
-{{"kehystys_lisä":[],"vasemmisto_epäedullinen_lisä":[]}}"""
+{{"kehystys_lisä":[],"poliittinen_signaali_lisä":[]}}"""
 
     try:
         msg = client.messages.create(
@@ -464,12 +470,12 @@ Tagit: {tagit_v2_str}
         if "{" in teksti_v:
             teksti_v = teksti_v[teksti_v.index("{"):teksti_v.rindex("}")+1]
         data = json.loads(teksti_v)
-        for ryhmä in ["kehystys_lisä","vasemmisto_epäedullinen_lisä"]:
+        for ryhmä in ["kehystys_lisä","poliittinen_signaali_lisä"]:
             data[ryhmä] = [t for t in data.get(ryhmä,[]) if t in KAIKKI_V2]
         return data
     except Exception as e:
         print(f"V2-virhe ({url}): {e}")
-        return {"kehystys_lisä":[],"vasemmisto_epäedullinen_lisä":[]}
+        return {"kehystys_lisä":[],"poliittinen_signaali_lisä":[]}
 
 # ── Google Sheets ─────────────────────────────────────────────────────────────
 
@@ -526,7 +532,7 @@ def paivita_tilastot(sheet, ws_kortti):
     ei_etusivulle = sum(1 for k in kortit if k.get("julkaistu_ei_nostettu") == "kyllä")
     otsikko_muutettu = sum(1 for k in kortit if int(k.get("muokattu_kertaa") or 0) > 0)
     liveuutisia = sum(1 for k in kortit if k.get("mahdollinen_liveuutinen") == "kyllä")
-    epaedullisia = sum(1 for k in kortit if k.get("tagit_vasemmisto_epäedullinen",""))
+    epaedullisia = sum(1 for k in kortit if k.get("tagit_poliittinen_signaali",""))
 
     # Näkyvyysajat per aihetagi
     aihe_nakyvyys = {}
@@ -548,7 +554,7 @@ def paivita_tilastot(sheet, ws_kortti):
     for k in kortit:
         ikkuna = k.get("julkaisuikkuna","")
         if not ikkuna: continue
-        if k.get("tagit_vasemmisto_epäedullinen",""):
+        if k.get("tagit_poliittinen_signaali",""):
             ikkuna_epa[ikkuna] = ikkuna_epa.get(ikkuna, 0) + 1
         else:
             ikkuna_muut[ikkuna] = ikkuna_muut.get(ikkuna, 0) + 1
@@ -566,6 +572,21 @@ def paivita_tilastot(sheet, ws_kortti):
     rivit.append([f"Päivitetty: {nyt.strftime('%Y-%m-%d %H:%M')}", ""])
     rivit.append(["", ""])
 
+    vasemmisto_epa = sum(1 for k in kortit if any(
+        t.strip() in ["maahanmuuttaja-rikoksentekija","turvapaikanhakija-ongelmat",
+                      "ps-tai-oikeisto-onnistuu","vasemmisto-tai-vihrea-epaonnistuu",
+                      "ydinvoima-positiivinen","trans-kriittinen",
+                      "anti-nato","anti-eu","pro-israel","anti-palestiina"]
+        for t in k.get("tagit_poliittinen_signaali","").split(",")
+    ))
+    oikeisto_epa = sum(1 for k in kortit if any(
+        t.strip() in ["maahanmuutto-positiivinen","oikeisto-tai-ps-epaonnistuu",
+                      "vasemmisto-tai-vihrea-onnistuu","ydinvoima-kriittinen",
+                      "ilmastotoimet-positiivinen","trans-myonteinen",
+                      "pro-nato","pro-eu","anti-israel","pro-palestiina"]
+        for t in k.get("tagit_poliittinen_signaali","").split(",")
+    ))
+
     rivit.append(["═══ YLEISKATSAUS ═══", ""])
     rivit.append(["Uutisia seurattu yhteensä", yhteensa])
     rivit.append(["Uutisia tänään päivitetty", tanaan_n])
@@ -573,7 +594,8 @@ def paivita_tilastot(sheet, ws_kortti):
     rivit.append(["Julkaistu mutta ei nostettu etusivulle", ei_etusivulle])
     rivit.append(["Otsikkoa muutettu jälkikäteen", otsikko_muutettu])
     rivit.append(["Mahdollisia live-uutisia", liveuutisia])
-    rivit.append(["Vasemmistolle epäedullisia uutisia", epaedullisia])
+    rivit.append(["Vasemmistolle epäedullisia uutisia", vasemmisto_epa])
+    rivit.append(["Oikeistolle epäedullisia uutisia", oikeisto_epa])
     rivit.append(["", ""])
 
     rivit.append(["═══ NÄKYVYYSAIKA KATEGORIOITTAIN (tuntia, ka) ═══", ""])
@@ -610,6 +632,52 @@ def paivita_tilastot(sheet, ws_kortti):
                 k.get("viimeisin_muutos",""),
             ])
 
+    # ── Top henkilöt ──
+    henkilot_lkm = {}
+    henkilot_nakyvyys = {}
+    henkilot_vas = {}
+    henkilot_oik = {}
+
+    vas_tagit = {"maahanmuuttaja-rikoksentekija","turvapaikanhakija-ongelmat",
+                 "ps-tai-oikeisto-onnistuu","vasemmisto-tai-vihrea-epaonnistuu",
+                 "ydinvoima-positiivinen","trans-kriittinen",
+                 "anti-nato","anti-eu","pro-israel","anti-palestiina"}
+    oik_tagit = {"maahanmuutto-positiivinen","oikeisto-tai-ps-epaonnistuu",
+                 "vasemmisto-tai-vihrea-onnistuu","ydinvoima-kriittinen",
+                 "ilmastotoimet-positiivinen","trans-myonteinen",
+                 "pro-nato","pro-eu","anti-israel","pro-palestiina"}
+
+    for k in kortit:
+        henkilo_str = k.get("tagit_henkilot","")
+        if not henkilo_str:
+            continue
+        henkilot = [h.strip() for h in henkilo_str.split(",") if h.strip()]
+        nakyvyys = float(k.get("nakyvyys_tunnit") or 0)
+        pol_tagit = set(t.strip() for t in k.get("tagit_poliittinen_signaali","").split(",") if t.strip())
+
+        for h in henkilot:
+            henkilot_lkm[h] = henkilot_lkm.get(h, 0) + 1
+            henkilot_nakyvyys[h] = henkilot_nakyvyys.get(h, 0) + nakyvyys
+            if pol_tagit & vas_tagit:
+                henkilot_vas[h] = henkilot_vas.get(h, 0) + 1
+            if pol_tagit & oik_tagit:
+                henkilot_oik[h] = henkilot_oik.get(h, 0) + 1
+
+    top_henkilot = sorted(henkilot_lkm.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    rivit.append(["", ""])
+    rivit.append(["═══ TOP 20 ENITEN UUTISOITU HENKILÖ ═══", ""])
+    rivit.append(["Henkilö", "Uutisia", "Vasemmisto-epäed.", "Oikeisto-epäed.", "Ka. näkyvyys (h)"])
+    for nimi, lkm in top_henkilot:
+        ka_nakyvyys = round(henkilot_nakyvyys.get(nimi, 0) / lkm, 1) if lkm > 0 else ""
+        rivit.append([
+            nimi,
+            lkm,
+            henkilot_vas.get(nimi, 0),
+            henkilot_oik.get(nimi, 0),
+            ka_nakyvyys,
+        ])
+
     ws_tilastot.append_rows(rivit, value_input_option="USER_ENTERED")
     print(f"Tilastot päivitetty: {len(rivit)} riviä")
 
@@ -625,18 +693,18 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
 
     tagit_aihe = tagit_str(kat.get("aihe",[]))
     tagit_keh  = tagit_str(kat.get("kehystys",[]))
-    tagit_vas  = tagit_str(kat.get("vasemmisto_epäedullinen",[]))
+    tagit_vas  = tagit_str(kat.get("poliittinen_signaali",[]))
     varmuus    = kat.get("varmuus", 0)
 
     vaihe2_tehty     = "kyllä" if v2 else "ei"
     vaihe2_lisatagit = ""
     if v2:
-        kaikki_v2 = v2.get("kehystys_lisä",[]) + v2.get("vasemmisto_epäedullinen_lisä",[])
+        kaikki_v2 = v2.get("kehystys_lisä",[]) + v2.get("poliittinen_signaali_lisä",[])
         vaihe2_lisatagit = tagit_str(kaikki_v2)
 
     mahdollinen_live, viimeisin_paivitys, paivitysviive = live_data
 
-    tarkistamatta = "kyllä" if (varmuus < 70 or kat.get("vasemmisto_epäedullinen")) else "ei"
+    tarkistamatta = "kyllä" if (varmuus < 70 or kat.get("poliittinen_signaali")) else "ei"
 
     if vanha:
         ensimmainen = vanha.get("ensimmainen_etusivu","")
@@ -701,7 +769,7 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
             muokattu_kertaa += 1
             viimeisin_muutos = nyt_str
             def ts(s): return set(t.strip() for t in s.split(",") if t.strip())
-            vanhat_t = ts(vanha.get("tagit_aihe","")) | ts(vanha.get("tagit_kehystys","")) | ts(vanha.get("tagit_vasemmisto_epäedullinen",""))
+            vanhat_t = ts(vanha.get("tagit_aihe","")) | ts(vanha.get("tagit_kehystys","")) | ts(vanha.get("tagit_poliittinen_signaali",""))
             uudet_t  = ts(tagit_aihe) | ts(tagit_keh) | ts(tagit_vas)
             lisatyt   = ", ".join(sorted(uudet_t-vanhat_t))
             poistetut = ", ".join(sorted(vanhat_t-uudet_t))
@@ -757,7 +825,7 @@ def main():
             kategorisoidut[url] = {
                 "aihe":      [t.strip() for t in k.get("tagit_aihe","").split(",") if t.strip()],
                 "kehystys":  [t.strip() for t in k.get("tagit_kehystys","").split(",") if t.strip()],
-                "vasemmisto_epäedullinen": [t.strip() for t in k.get("tagit_vasemmisto_epäedullinen","").split(",") if t.strip()],
+                "poliittinen_signaali": [t.strip() for t in k.get("tagit_poliittinen_signaali","").split(",") if t.strip()],
                 "henkilot":  [t.strip() for t in k.get("tagit_henkilot","").split(",") if t.strip()],
                 "varmuus":   k.get("varmuus",0),
             }
@@ -786,7 +854,7 @@ def main():
 
     v2_tulokset = {}
     for url, kat in uudet_kategoriat.items():
-        if kat.get("vasemmisto_epäedullinen"):
+        if kat.get("poliittinen_signaali"):
             print(f"Vaihe 2: {url[:60]}")
             v2_tulokset[url] = kategorisoi_artikkeli_v2(url, tarvitsee_v1[url], kat)
             time.sleep(0.5)
@@ -802,12 +870,12 @@ def main():
         if not otsikko: continue
 
         kat = kategorisoidut.get(url) or uudet_kategoriat.get(url) or \
-              {"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"varmuus":0}
+              {"aihe":[],"kehystys":[],"poliittinen_signaali":[],"varmuus":0}
         v2  = v2_tulokset.get(url)
 
         tagit_aihe = tagit_str(kat.get("aihe",[]))
         tagit_keh  = tagit_str(kat.get("kehystys",[]))
-        tagit_vas  = tagit_str(kat.get("vasemmisto_epäedullinen",[]))
+        tagit_vas  = tagit_str(kat.get("poliittinen_signaali",[]))
         tagit_henkilot = tagit_str(kat.get("henkilot",[]))
         varmuus    = kat.get("varmuus",0)
         aihehenkilot = etsi_aihehenkilot(otsikko)
@@ -815,10 +883,10 @@ def main():
         vaihe2_tehty     = "kyllä" if v2 else "ei"
         vaihe2_lisatagit = ""
         if v2:
-            kaikki_v2 = v2.get("kehystys_lisä",[]) + v2.get("vasemmisto_epäedullinen_lisä",[])
+            kaikki_v2 = v2.get("kehystys_lisä",[]) + v2.get("poliittinen_signaali_lisä",[])
             vaihe2_lisatagit = tagit_str(kaikki_v2)
 
-        tarkistamatta = "kyllä" if (varmuus < 70 or kat.get("vasemmisto_epäedullinen")) else "ei"
+        tarkistamatta = "kyllä" if (varmuus < 70 or kat.get("poliittinen_signaali")) else "ei"
 
         # Live-uutinen tarkistus
         julkaisuaika = rss.get("julkaisuaika","")
