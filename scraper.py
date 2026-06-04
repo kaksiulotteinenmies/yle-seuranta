@@ -58,7 +58,7 @@ TAGIT_V1 = {
     ],
     "kehystys": [
         "savy-positiivinen","savy-negatiivinen","savy-neutraali",
-        "tekija-maahanmuuttaja","tekija-kantasuomalainen","tekija-tuntematon",
+        "tekija-maahanmuuttaja","tekija-kantasuomalainen","tekija-tuntematon","tekija-alaikainen",
         "kohde-nainen","kohde-mies","kohde-lapsi","kohde-virkavalta",
         "poliitikko-vasemmisto","poliitikko-oikeisto","poliitikko-kepu",
         "poliitikko-aarioikeisto","poliitikko-äärivasemmisto",
@@ -359,6 +359,8 @@ def tee_batch_kategoriointi_v1(otsikot_dict):
 
 TÄRKEÄT OHJEET:
 - Käytä `tekija-*` ja `kohde-*` tageja AINOASTAAN rikos-, väkivalta- tai onnettomuusuutisissa joissa on selkeä tekijä tai uhri. ÄLÄ käytä näitä urheilussa, politiikassa tai muissa neutraaleissa uutisissa.
+- Käytä `kohde-lapsi` VAIN jos lapsi on rikoksen tai väkivallan uhri. ÄLÄ käytä jos lapsi tai alaikäinen on epäilty tai tekijä — silloin käytä `tekija-alaikainen`.
+- Käytä `tekija-tuntematon` VAIN jos tekijää ei ole mainittu eikä vihjattu. Jos otsikossa sanotaan esim. "poliisi epäilee alaikäistä", käytä `tekija-alaikainen` eikä `tekija-tuntematon`.
 - Käytä `vasemmisto-tai-vihrea-epaonnistuu` ja `ps-tai-oikeisto-onnistuu` tageja VAIN selkeissä poliittisissa skandaaleissa tai epäonnistumisissa — EI tavallisessa kriittisessä journalismissa tai puolueita analysoivissa uutisissa.
 - Tunnista `henkilot`-kenttään kaikki otsikossa mainitut henkilönnimet. Normalisoi nimet perusmuotoon (nominatiivi) — esim. "Häkkisen" → "Häkkinen", "Orpolle" → "Orpo". Lista voi olla tyhjä.
 
