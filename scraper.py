@@ -458,6 +458,9 @@ Tagit: {tagit_v2_str}
             messages=[{"role":"user","content":prompt}]
         )
         teksti_v = msg.content[0].text.replace("```json","").replace("```","").strip()
+        # Ota vain ensimmäinen JSON-objekti jos on ylimääräistä dataa
+        if "{" in teksti_v:
+            teksti_v = teksti_v[teksti_v.index("{"):teksti_v.rindex("}")+1]
         data = json.loads(teksti_v)
         for ryhmä in ["kehystys_lisä","vasemmisto_epäedullinen_lisä"]:
             data[ryhmä] = [t for t in data.get(ryhmä,[]) if t in KAIKKI_V2]
@@ -478,7 +481,10 @@ def yhdista():
 def hae_tai_luo_ws(sheet, nimi, otsikot):
     try:
         ws = sheet.worksheet(nimi)
-        if not ws.get_all_values():
+        # Tarkista onko otsikkorivi oikein
+        arvot = ws.get_all_values()
+        if not arvot or arvot[0] != otsikot:
+            ws.clear()
             ws.append_row(otsikot)
     except gspread.WorksheetNotFound:
         ws = sheet.add_worksheet(title=nimi, rows=10000, cols=max(len(otsikot), 30))
