@@ -6,7 +6,7 @@ Automaattinen järjestelmä joka seuraa Yle.fi:n etusivua ympäri vuorokauden ja
 
 ## Miten se toimii
 
-Botti herää kerran tunnissa (GitHub Actions), skannaa Ylen etusivun, kategorisoi uutiset tekoälyllä ja tallentaa kaiken Google Sheetsiin. Sinun ei tarvitse tehdä mitään — data kertyy automaattisesti.
+Botti herää kerran tunnissa (GitHub Actions), skannaa Ylen etusivun, kategorisoi uutiset tekoälyllä ja tallentaa kaiken Google Sheetsiin. Data kertyy automaattisesti.
 
 ### Kaksivaiheinen analyysi
 
@@ -28,6 +28,17 @@ Jos vaihe 1 tunnistaa poliittisesti herkän uutisen, botti lukee koko artikkelin
 
 ### Vasemmistolle epäedullinen — projektin ydinkysymys
 `maahanmuuttaja-rikoksentekija` `turvapaikanhakija-ongelmat` `ps-tai-oikeisto-onnistuu` `vasemmisto-tai-vihrea-epaonnistuu` `ydinvoima-positiivinen` `trans-kriittinen` `anti-nato` `anti-eu` `pro-israel` `anti-palestiina`
+
+### Aihehenkilöt (tekstihaku otsikosta — ei AI:ta)
+Poimitaan suoraan otsikosta, 100% luotettava:
+
+**Geopolitiikka:** `nato` `israel` `palestiina` `gaza` `trump` `biden` `demokratit` `republikaanit` `ukraina` `venäjä` `putin` `kiina` `eu` `yhdysvallat`
+
+**Maahanmuutto:** `turvapaikanhakija` `pakolainen` `maahanmuuttaja` `käännytys` `oleskelulupa`
+
+**Puolueet ja poliitikot:** `kokoomus` `sdp` `perussuomalaiset` `keskusta` `vihreät` `vasemmistoliitto` `rkp` `kd` `orpo` `lindtman` `purra` `haavisto`
+
+**Identiteetti:** `seta` `trans` `transsukupuoli` `hlbtq` `pride`
 
 ### Vaihe 2 lisätagit — artikkelista
 `tausta-mainittu` `tausta-ei-mainittu` `tekija-aarioikeisto` `tekija-äärivasemmisto` `lahde-vain-viranomainen` `lahde-monipuolinen` `painotus-oikeistokriittinen` `painotus-vasemmistokriittinen` `integraatio-epaonnistuminen` `islam-ongelmat-suomessa` `rinnakkaisyhteiskunta` `maahanmuuton-kustannukset` `ilmastopolitiikka-kustannukset` `vihrea-siirtyman-ongelmat` `anti-sateenkaari` `anti-transideologia` `anti-islam`
@@ -61,7 +72,7 @@ Yksi rivi per uutinen. Päivittyy automaattisesti joka skannauksen yhteydessä.
 | `viimeisin_paivitys` | Milloin artikkelia viimeksi muokattu |
 | `paivitysviive_pv` | Päiviä julkaisusta viimeisimpään päivitykseen |
 
-### Välilehti 3: Tilastot
+### Tilastot-välilehti
 Päivittyy automaattisesti joka ajon yhteydessä. Sisältää:
 - Yleiskatsaus (uutisten määrät, live-uutiset, otsikkomuutokset)
 - Näkyvyysajat kategorioittain
@@ -114,16 +125,16 @@ Päivittyy automaattisesti joka ajon yhteydessä. Sisältää:
 
 ### 1. Google Sheets ja Service Account
 
-1. Luo uusi Google Sheet ja kopioi sen ID URL:sta
-2. Mene [console.cloud.google.com](https://console.cloud.google.com)
-3. Luo uusi projekti
-4. Ota käyttöön: **Google Sheets API** ja **Google Drive API**
-5. Luo **Service Account** → lataa JSON-avain
-6. Jaa Google Sheet service accountin sähköpostille (Editor-oikeus)
+1. Luodaan uusi Google Sheet ja kopioidaan sen ID URL:sta
+2. Mennään [console.cloud.google.com](https://console.cloud.google.com)
+3. Luodaan uusi projekti
+4. Otetaan käyttöön: **Google Sheets API** ja **Google Drive API**
+5. Luodaan **Service Account** → ladataan JSON-avain
+6. Jaetaan Google Sheet service accountin sähköpostille (Editor-oikeus)
 
 ### 2. GitHub Secrets
 
-Mene repositoryn **Settings → Secrets and variables → Actions** ja lisää:
+Mennään repositoryn **Settings → Secrets and variables → Actions** ja lisätään:
 
 | Nimi | Arvo |
 |------|------|
@@ -135,12 +146,12 @@ Mene repositoryn **Settings → Secrets and variables → Actions** ja lisää:
 
 ### 3. Koodi GitHubiin
 
-Lataa repositoryyn:
+Ladataan repositoryyn:
 - `scraper.py`
 - `requirements.txt`
 - `.github/workflows/seuranta.yml`
 
-### 4. Testaa
+### 4. Testaus
 
 **Actions** → **Yle-uutisseuranta** → **Run workflow**
 
@@ -181,7 +192,7 @@ Tällä hetkellä botti seuraa otsikkomuutoksia mutta ei artikkelin sisältöä.
 
 ### Testirajoituksen poisto
 
-Tällä hetkellä koodissa on `MAX_UUTISET_PER_AJO = 10` joka rajoittaa kategorisointia testivaiheessa. Kun järjestelmä toimii vakaasti, vaihda arvoksi `None`:
+Koodissa on `MAX_UUTISET_PER_AJO = 10` joka rajoittaa kategorisointia testivaiheessa. Kun järjestelmä toimii vakaasti, vaihdetaan arvoksi `None`:
 
 ```python
 MAX_UUTISET_PER_AJO = None
@@ -204,6 +215,16 @@ Tämän avulla voidaan tehdä aito vertailu:
 - Etusivulle pääsyprosentti kategorioittain
 
 Lisätään kun ryhmä 3 on todettu toimivaksi ja luotettavaksi.
+
+### Avainsanalista kategorisointiin
+
+Tällä hetkellä AI kategorisoi uutiset pelkän otsikon perusteella ja tekee virheitä epäsuorilla otsikoilla (esim. "Suomen vanhin kunnanjohtaja" → kulttuuri vaikka pitäisi olla politiikka-hallitus).
+
+Ratkaisu: erillinen avainsanalista jota voi päivittää käsin. Esimerkiksi:
+- `kunnanjohtaja, kaupunginjohtaja, valtuusto, kunnanhallitus` → politiikka-hallitus
+- `turvapaikka, käännytys, oleskelulupa` → maahanmuutto
+
+Lista toimisi tekstihaulla ennen AI-kategorisointia — luotettava ja helppo ylläpitää.
 
 ### Pivot-tilastot
 
