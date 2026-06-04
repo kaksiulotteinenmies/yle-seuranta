@@ -1,16 +1,13 @@
 name: Yle-uutisseuranta
 
 on:
-  schedule:
-    # Joka tunti 17 minuuttia yli (UTC-aikaa, Suomi = UTC+3 kesällä / UTC+2 talvella)
-    - cron: '17 * * * *'
-  # Mahdollistaa myös manuaalisen käynnistyksen GitHubista
+  # Ajastetaan ulkoisesti cron-job.org kautta
   workflow_dispatch:
 
 jobs:
   skrappaa:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Hae koodi
