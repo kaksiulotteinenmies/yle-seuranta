@@ -358,6 +358,8 @@ def kategorisoi_artikkeli_v2(url, otsikko, v1_data):
 
 Täydennä nyt vaihe 2 tageilla artikkelin perusteella. Vastaa AINOASTAAN JSON-muodossa.
 
+TÄRKEÄ OHJE: Käytä tageja `tausta-mainittu`, `tausta-ei-mainittu`, `tekija-aarioikeisto` ja `tekija-äärivasemmisto` AINOASTAAN jos artikkeli käsittelee rikosta, väkivaltaa, mielenosoitusta tai muuta konkreettista tapahtumaa jossa on selkeä tekijä. ÄLÄ käytä näitä tageja poliittisissa analyyseissä, kannatuskyselyissä tai puolueita koskevissa uutisissa.
+
 Otsikko: "{otsikko}"
 Artikkeli: "{teksti}"
 
@@ -392,7 +394,10 @@ def yhdista():
 def hae_tai_luo_ws(sheet, nimi, otsikot):
     try:
         ws = sheet.worksheet(nimi)
-        if not ws.get_all_values():
+        arvot = ws.get_all_values()
+        # Luo otsikot jos Sheet on tyhjä tai ensimmäinen rivi ei täsmää
+        if not arvot or arvot[0] != otsikot:
+            ws.clear()
             ws.append_row(otsikot)
     except gspread.WorksheetNotFound:
         ws = sheet.add_worksheet(title=nimi, rows=10000, cols=len(otsikot))
