@@ -254,18 +254,39 @@ def hae_rss_uutiset():
 # ── Etusivu ───────────────────────────────────────────────────────────────────
 
 def hae_etusivu_uutiset():
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "fi-FI,fi;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Cache-Control": "max-age=0",
-    }
-    session = requests.Session()
-    session.headers.update(headers)
-    resp = session.get(YLE_ETUSIVU_URL, timeout=15)
-    resp.raise_for_status()
+    # Kokeillaan eri User-Agentteja jos yksi blokataan
+    user_agents = [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+    ]
+    resp = None
+    for ua in user_agents:
+        try:
+            headers = {
+                "User-Agent": ua,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "fi-FI,fi;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Cache-Control": "max-age=0",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+            }
+            session = requests.Session()
+            session.headers.update(headers)
+            resp = session.get(YLE_ETUSIVU_URL, timeout=15)
+            if resp.status_code == 200:
+                print(f"Etusivu OK (UA: {ua[:40]}...)")
+                break
+            print(f"Status {resp.status_code} UA:lla {ua[:40]}...")
+        except Exception as e:
+            print(f"Virhe UA:lla {ua[:40]}: {e}")
+    if not resp or resp.status_code != 200:
+        raise Exception(f"Etusivu ei vastaa — kaikki User-Agentit blokattu")
     soup = BeautifulSoup(resp.text, "html.parser")
 
     tulokset = []
