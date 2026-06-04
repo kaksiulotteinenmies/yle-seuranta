@@ -102,7 +102,9 @@ AIHEHENKILOT = {
     ],
     "puolueet_poliitikot": [
         "kokoomus","sdp","perussuomalaiset","keskusta","vihreät",
-        "vasemmistoliitto","rkp","kd","orpo","lindtman","purra","haavisto",
+        "vasemmistoliitto","rkp","kd","kristillisdemokraatit",
+        "demarit","demari","sosialidemokraatit",
+        "persut","kokkarit","kepulaiset","vasemmisto",
     ],
     "identiteetti": [
         "seta","trans","transsukupuoli","hlbtq","pride",
@@ -139,7 +141,7 @@ RAAKA_OTSIKOT = [
     "aikaleima","url","otsikko","osio","sijainti",
     "julkaisuaika","julkaisuikkuna","viikonpaiva","etusivulla",
     "tagit_aihe","tagit_kehystys","tagit_vasemmisto_epäedullinen",
-    "tagit_aihehenkilot",
+    "tagit_aihehenkilot","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
     "varmuus","tarkistamatta","viive_julkaisusta_min",
@@ -153,7 +155,7 @@ KORTTI_OTSIKOT = [
     "paras_sijainti","huonoin_sijainti","keskisijainti","osiot_joissa_nahty",
     "etusivulla_koskaan","julkaistu_ei_nostettu",
     "tagit_aihe","tagit_kehystys","tagit_vasemmisto_epäedullinen",
-    "tagit_aihehenkilot",
+    "tagit_aihehenkilot","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
     "varmuus","tarkistamatta",
@@ -358,12 +360,13 @@ def tee_batch_kategoriointi_v1(otsikot_dict):
 TÄRKEÄT OHJEET:
 - Käytä `tekija-*` ja `kohde-*` tageja AINOASTAAN rikos-, väkivalta- tai onnettomuusuutisissa joissa on selkeä tekijä tai uhri. ÄLÄ käytä näitä urheilussa, politiikassa tai muissa neutraaleissa uutisissa.
 - Käytä `vasemmisto-tai-vihrea-epaonnistuu` ja `ps-tai-oikeisto-onnistuu` tageja VAIN selkeissä poliittisissa skandaaleissa tai epäonnistumisissa — EI tavallisessa kriittisessä journalismissa tai puolueita analysoivissa uutisissa.
+- Tunnista `henkilot`-kenttään kaikki otsikossa mainitut henkilönnimet. Normalisoi nimet perusmuotoon (nominatiivi) — esim. "Häkkisen" → "Häkkinen", "Orpolle" → "Orpo". Lista voi olla tyhjä.
 
 Otsikko: "{otsikko}"
 
 Tagit: {tagit_v1_str}
 
-{{"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"varmuus":0}}"""
+{{"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"henkilot":[],"varmuus":0}}"""
 
         requests_list.append({
             "custom_id": url_to_id[url],
@@ -396,6 +399,7 @@ Tagit: {tagit_v1_str}
                 data = json.loads(teksti)
                 for ryhmä in ["aihe","kehystys","vasemmisto_epäedullinen"]:
                     data[ryhmä] = [t for t in data.get(ryhmä,[]) if t in KAIKKI_V1]
+                data["henkilot"] = [h.strip() for h in data.get("henkilot",[]) if h.strip()]
                 tulokset[url] = data
             else:
                 tulokset[url] = {"aihe":[],"kehystys":[],"vasemmisto_epäedullinen":[],"varmuus":0}
@@ -604,7 +608,7 @@ def paivita_tilastot(sheet, ws_kortti):
 # ── Uutiskortti-laskenta ──────────────────────────────────────────────────────
 
 def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
-                 aihehenkilot, live_data, vanha=None):
+                 aihehenkilot, tagit_henkilot, live_data, vanha=None):
     nyt_dt = parse_dt(nyt_str)
     julkaisuaika   = rss.get("julkaisuaika","") if rss else ""
     julkaisuikkuna = rss.get("julkaisuikkuna","") if rss else ""
@@ -715,7 +719,7 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
         paras, huonoin, keski_n, kaikki_osiot,
         etusivulla_koskaan, julkaistu_ei_nostettu,
         tagit_aihe, tagit_keh, tagit_vas,
-        aihehenkilot,
+        aihehenkilot, tagit_henkilot,
         vaihe2_tehty, vaihe2_lisatagit,
         mahdollinen_live, viimeisin_paivitys, paivitysviive,
         varmuus, tarkistamatta,
@@ -746,6 +750,7 @@ def main():
                 "aihe":      [t.strip() for t in k.get("tagit_aihe","").split(",") if t.strip()],
                 "kehystys":  [t.strip() for t in k.get("tagit_kehystys","").split(",") if t.strip()],
                 "vasemmisto_epäedullinen": [t.strip() for t in k.get("tagit_vasemmisto_epäedullinen","").split(",") if t.strip()],
+                "henkilot":  [t.strip() for t in k.get("tagit_henkilot","").split(",") if t.strip()],
                 "varmuus":   k.get("varmuus",0),
             }
 
@@ -795,6 +800,7 @@ def main():
         tagit_aihe = tagit_str(kat.get("aihe",[]))
         tagit_keh  = tagit_str(kat.get("kehystys",[]))
         tagit_vas  = tagit_str(kat.get("vasemmisto_epäedullinen",[]))
+        tagit_henkilot = tagit_str(kat.get("henkilot",[]))
         varmuus    = kat.get("varmuus",0)
         aihehenkilot = etsi_aihehenkilot(otsikko)
 
@@ -820,7 +826,7 @@ def main():
                     nyt_str, url, otsikko, h["osio"], h["sijainti"],
                     julkaisuaika, rss.get("julkaisuikkuna",""),
                     rss.get("viikonpaiva",""), "kyllä",
-                    tagit_aihe, tagit_keh, tagit_vas, aihehenkilot,
+                    tagit_aihe, tagit_keh, tagit_vas, aihehenkilot, tagit_henkilot,
                     vaihe2_tehty, vaihe2_lisatagit,
                     live_data[0], live_data[1], live_data[2],
                     varmuus, tarkistamatta, viive_min,
@@ -830,7 +836,7 @@ def main():
                 nyt_str, url, otsikko, "ei_etusivulla", "",
                 julkaisuaika, rss.get("julkaisuikkuna",""),
                 rss.get("viikonpaiva",""), "ei",
-                tagit_aihe, tagit_keh, tagit_vas, aihehenkilot,
+                tagit_aihe, tagit_keh, tagit_vas, aihehenkilot, tagit_henkilot,
                 vaihe2_tehty, vaihe2_lisatagit,
                 live_data[0], live_data[1], live_data[2],
                 varmuus, tarkistamatta, "",
@@ -838,7 +844,7 @@ def main():
 
         korttiarvo = laske_kortti(
             url, otsikko, rss, havainnot, nyt_str, kat, v2,
-            aihehenkilot, live_data, vanha=kortit.get(url)
+            aihehenkilot, tagit_henkilot, live_data, vanha=kortit.get(url)
         )
         if url in kortit:
             kortti_paivitys.append((kortit[url]["_rivi"], korttiarvo))
