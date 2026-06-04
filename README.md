@@ -1,175 +1,187 @@
-# Yle-uutisseuranta — Käyttöohje ja dokumentaatio
+# Yle-uutisseuranta
 
-## Mitä järjestelmä tekee
-
-Botti skannaa Yle.fi:n etusivua kerran tunnissa ja tallentaa kaiken dataan.
-Tavoitteena on selvittää dataan perustuen, katoavatko tietyt uutiset
-etusivulta nopeammin kuin muut — erityisesti ne jotka ovat poliittisesti
-epäedullisia vasemmistolle.
+Automaattinen järjestelmä joka seuraa Yle.fi:n etusivua ympäri vuorokauden ja analysoi, mitkä uutiset nostetaan esille, kuinka kauan ne pysyvät näkyvissä, ja mitä uutisia julkaistaan mutta ei koskaan nosteta etusivulle.
 
 ---
 
-## Kaksivaiheinen analyysimalli
+## Miten se toimii
 
-### Vaihe 1 — Otsikon perusteella (kaikki uutiset)
-Kaikki uutiset kategorisoidaan otsikon perusteella Batch API:lla.
-Batch API on 50% halvempi kuin yksittäiset kutsut.
-Kategorisoidaan kolme tagiryhmää (ks. alla).
+Botti herää kerran tunnissa (GitHub Actions), skannaa Ylen etusivun, kategorisoi uutiset tekoälyllä ja tallentaa kaiken Google Sheetsiin. Sinun ei tarvitse tehdä mitään — data kertyy automaattisesti.
 
-### Vaihe 2 — Artikkelin perusteella (vain herkkä sisältö)
-Jos vaihe 1 tunnistaa "vasemmistolle epäedullinen" -tagin,
-botti hakee ja lukee koko artikkelin ja täydentää tageja tarkemmilla
-tiedoilla: tekijän tausta mainittu/ei, lähteen monipuolisuus, painotus jne.
+### Kaksivaiheinen analyysi
+
+**Vaihe 1 — otsikon perusteella (kaikki uutiset)**
+Claude analysoi jokaisen uutisen otsikon ja merkitsee sille tagit kolmesta ryhmästä: aihe, kehystys ja poliittinen signaali. Käyttää Batch API:a — 50% halvempi kuin yksittäiset kutsut.
+
+**Vaihe 2 — artikkelin perusteella (vain herkkä sisältö)**
+Jos vaihe 1 tunnistaa poliittisesti herkän uutisen, botti lukee koko artikkelin ja täydentää analyysiä tarkemmilla tiedoilla: onko tekijän tausta mainittu, ovatko lähteet monipuolisia, mihin suuntaan painotus kallistuu.
 
 ---
 
 ## Tagit
 
-### Ryhmä 1: Aihe (vaihe 1, otsikosta)
-Mistä uutinen kertoo:
-maahanmuutto, rikos, vakivalta, seksuaalirikos, terrorismi,
-politiikka-hallitus, politiikka-oppositio, talous, tyollisyys,
-ilmastonmuutos, energia, terveys, koulutus, urheilu, kulttuuri,
-ulkomaat, onnettomuus, oikeus
+### Aihe — mistä uutinen kertoo
+`maahanmuutto` `rikos` `vakivalta` `seksuaalirikos` `terrorismi` `politiikka-hallitus` `politiikka-oppositio` `talous` `tyollisyys` `ilmastonmuutos` `energia` `terveys` `koulutus` `urheilu` `kulttuuri` `ulkomaat` `onnettomuus` `oikeus`
 
-### Ryhmä 2: Kehystys (vaihe 1, otsikosta)
-Miten uutinen on kirjoitettu — vain otsikosta selvästi pääteltävissä:
-savy-positiivinen, savy-negatiivinen, savy-neutraali,
-tekija-maahanmuuttaja, tekija-kantasuomalainen, tekija-tuntematon,
-kohde-nainen, kohde-mies, kohde-lapsi, kohde-virkavalta,
-poliitikko-vasemmisto, poliitikko-oikeisto, poliitikko-kepu,
-poliitikko-aarioikeisto, poliitikko-äärivasemmisto,
-tilasto, yksittaistapaus
+### Kehystys — miten uutinen on kirjoitettu
+`savy-positiivinen` `savy-negatiivinen` `savy-neutraali` `tekija-maahanmuuttaja` `tekija-kantasuomalainen` `tekija-tuntematon` `kohde-nainen` `kohde-mies` `kohde-lapsi` `kohde-virkavalta` `poliitikko-vasemmisto` `poliitikko-oikeisto` `poliitikko-kepu` `poliitikko-aarioikeisto` `poliitikko-äärivasemmisto` `tilasto` `yksittaistapaus`
 
-### Ryhmä 3: Vasemmistolle epäedullinen (vaihe 1, otsikosta)
-Uutiset jotka ovat poliittisesti epäedullisia vasemmistolle:
-maahanmuuttaja-rikoksentekija, turvapaikanhakija-ongelmat,
-ps-tai-oikeisto-onnistuu, vasemmisto-tai-vihrea-epaonnistuu,
-ydinvoima-positiivinen, trans-kriittinen,
-anti-nato, anti-eu, pro-israel, anti-palestiina
+### Vasemmistolle epäedullinen — projektin ydinkysymys
+`maahanmuuttaja-rikoksentekija` `turvapaikanhakija-ongelmat` `ps-tai-oikeisto-onnistuu` `vasemmisto-tai-vihrea-epaonnistuu` `ydinvoima-positiivinen` `trans-kriittinen` `anti-nato` `anti-eu` `pro-israel` `anti-palestiina`
 
-### Vaihe 2 lisätagit (artikkelista, vain herkille uutisille)
-Kehystyksen täydennys:
-tausta-mainittu, tausta-ei-mainittu, tekija-aarioikeisto,
-tekija-äärivasemmisto, lahde-vain-viranomainen, lahde-monipuolinen,
-painotus-oikeistokriittinen, painotus-vasemmistokriittinen
-
-Vasemmistolle epäedullinen täydennys:
-integraatio-epaonnistuminen, islam-ongelmat-suomessa,
-rinnakkaisyhteiskunta, maahanmuuton-kustannukset,
-ilmastopolitiikka-kustannukset, vihrea-siirtyman-ongelmat,
-anti-sateenkaari, anti-transideologia, anti-islam
+### Vaihe 2 lisätagit — artikkelista
+`tausta-mainittu` `tausta-ei-mainittu` `tekija-aarioikeisto` `tekija-äärivasemmisto` `lahde-vain-viranomainen` `lahde-monipuolinen` `painotus-oikeistokriittinen` `painotus-vasemmistokriittinen` `integraatio-epaonnistuminen` `islam-ongelmat-suomessa` `rinnakkaisyhteiskunta` `maahanmuuton-kustannukset` `ilmastopolitiikka-kustannukset` `vihrea-siirtyman-ongelmat` `anti-sateenkaari` `anti-transideologia` `anti-islam`
 
 ---
 
-## Google Sheets rakenne
+## Google Sheets
 
-### Välilehti 1: Raakadata
-Jokainen skannaus omana rivinään — koskematon arkisto.
-Yksi uutinen voi esiintyä useita kertoja (eri skannauksista).
+### Raakadata-välilehti
+Jokainen skannaus omana rivinään — koskematon arkisto. Sama uutinen voi esiintyä useita kertoja eri skannauksista.
 
-Tärkeimmät sarakkeet:
-- aikaleima — milloin skannaus tehtiin
-- url — artikkelin pysyvä osoite
-- osio — paasivu / lyhyesti / suosituimmat / tuoreimmat / ei_etusivulla
-- etusivulla — kyllä / ei
-- tagit_vasemmisto_epäedullinen — projektin ydinsarake
-- vaihe2_tehty — onko artikkeli luettu tarkemmin
+### Uutiskortti-välilehti
+Yksi rivi per uutinen. Päivittyy automaattisesti joka skannauksen yhteydessä.
 
-### Välilehti 2: Uutiskortti
-Yksi rivi per uutinen — päivittyy automaattisesti.
-
-Tärkeimmät sarakkeet:
-- ensimmainen_etusivu / viimeinen_etusivu — milloin näkyi
-- nakyvyys_tunnit — kuinka kauan etusivulla yhteensä
-- paras_sijainti — korkein sijainti (pienin numero = ylimpänä)
-- osiot_joissa_nahty — missä kaikissa osioissa nähty
-- etusivulla_koskaan — kyllä / ei
-- julkaistu_ei_nostettu — julkaistu mutta ei koskaan etusivulle
-- vaihe2_lisatagit — artikkelin perusteella saadut lisätagit
-- tarkistamatta — kyllä jos kannattaa tarkistaa manuaalisesti
-- otsikko_alkuperainen — ensimmäinen otsikko (ei muutu)
-- muutoshistoria — kaikki otsikkomuutokset aikaleimoineen
+| Sarake | Selitys |
+|--------|---------|
+| `ensimmainen_etusivu` | Milloin uutinen ensin havaittiin etusivulla |
+| `viimeinen_etusivu` | Milloin viimeksi havaittiin |
+| `nakyvyys_tunnit` | Kuinka kauan etusivulla yhteensä |
+| `paras_sijainti` | Korkein sijainti (1 = ylimpänä) |
+| `osiot_joissa_nahty` | paasivu / suosituimmat / tuoreimmat / lyhyesti |
+| `etusivulla_koskaan` | kyllä / ei |
+| `julkaistu_ei_nostettu` | Julkaistu mutta ei koskaan etusivulle |
+| `vaihe2_tehty` | Onko artikkeli luettu tarkemmin |
+| `vaihe2_lisatagit` | Artikkelista saadut lisätagit |
+| `tarkistamatta` | kyllä = kannattaa tarkistaa manuaalisesti |
+| `otsikko_alkuperainen` | Ensimmäinen otsikko — ei muutu koskaan |
+| `muutoshistoria` | Kaikki otsikkomuutokset aikaleimoineen ja tagimuutoksineen |
 
 ---
 
 ## Aikaikkunat
 
-- aamupiikki: 06–09 (korkein lukijakunta)
-- tyopaiva: 09–16
-- iltapaivapiikki: 16–18
-- ilta: 18–22 (hypoteesi: herkkiä uutisia julkaistaan tähän aikaan)
-- yo: 22–06
+| Aikaikkuna | Kellonaika | Huomio |
+|------------|------------|--------|
+| aamupiikki | 06–09 | Korkein lukijakunta |
+| tyopaiva | 09–16 | Tasainen virta |
+| iltapaivapiikki | 16–18 | Toinen piikki |
+| ilta | 18–22 | Hypoteesi: herkkiä uutisia julkaistaan tähän aikaan |
+| yo | 22–06 | Minimaalinen lukijakunta |
 
 ---
 
 ## Hypoteesit joita testataan
 
-1. Katoavatko "vasemmistolle epäedulliset" uutiset etusivulta
-   nopeammin kuin muut vastaavan kategorian uutiset?
+1. **Nopea katoaminen** — Katoavatko vasemmistolle epäedulliset uutiset etusivulta nopeammin kuin muut vastaavan kategorian uutiset?
 
-2. Julkaistaanko herkkiä uutisia systemaattisesti illalla
-   jotta ne katoavat uutisvirrasta ennen aamuruuhkaa?
+2. **Ilta-julkaisu** — Julkaistaanko herkkiä uutisia systemaattisesti illalla jotta ne katoavat uutisvirrasta ennen aamuruuhkaa?
 
-3. Onko uutisia jotka on julkaistu mutta ei koskaan nostettu etusivulle?
-   (sarake: julkaistu_ei_nostettu = kyllä)
+3. **Piilottaminen** — Onko uutisia jotka on julkaistu mutta ei koskaan nostettu etusivulle? (`julkaistu_ei_nostettu = kyllä`)
 
-4. Muutetaanko uutisten otsikoita jälkikäteen tavalla joka
-   pehmentää sisältöä? (sarake: muutoshistoria)
+4. **Otsikkomuutokset** — Muutetaanko uutisten otsikoita jälkikäteen tavalla joka pehmentää sisältöä? (`muutoshistoria`)
 
 ---
 
 ## Hyödyllisiä suodatuksia Sheetsissä
 
-- Suodata julkaistu_ei_nostettu = "kyllä"
-  → näet kaikki julkaistut mutta piilotetut uutiset
-
-- Suodata tagit_vasemmisto_epäedullinen ei tyhjä
-  → vertaa nakyvyys_tunnit muihin uutisiin
-
-- Suodata julkaisuikkuna = "ilta" + etusivulla_koskaan = "ei"
-  → testaa ilta-hypoteesi
-
-- Suodata muokattu_kertaa > 0
-  → uutiset joiden otsikko on vaihtunut
+- `julkaistu_ei_nostettu = kyllä` → julkaistut mutta piilotetut uutiset
+- `tagit_vasemmisto_epäedullinen` ei tyhjä → vertaa nakyvyys_tunnit muihin
+- `julkaisuikkuna = ilta` + `etusivulla_koskaan = ei` → testaa ilta-hypoteesi
+- `muokattu_kertaa > 0` → uutiset joiden otsikko on vaihtunut
 
 ---
 
-## Asennusohjeet
+## Asennus
 
-### Tarvittavat tilit ja avaimet
-1. GitHub-tili (ilmainen) — github.com
-2. Google-tili — sheets.google.com
-3. Anthropic API-avain — console.anthropic.com (~1-2€/kk)
-4. Ylen API-avain (ilmainen) — tunnus.yle.fi/api-avaimet
+### Vaatimukset
+- GitHub-tili — [github.com](https://github.com)
+- Google-tili — [sheets.google.com](https://sheets.google.com)
+- Anthropic API-avain — [console.anthropic.com](https://console.anthropic.com) (~1–2 €/kk)
+- Ylen API-avain (ilmainen) — [tunnus.yle.fi](https://tunnus.yle.fi)
 
-### GitHub Secrets
-Lisää repositoryn Settings → Secrets → Actions:
-- ANTHROPIC_API_KEY
-- YLE_APP_ID
-- YLE_APP_KEY
-- GOOGLE_SHEET_ID
-- GOOGLE_CREDENTIALS_JSON
+### 1. Google Sheets ja Service Account
 
-### Google Service Account
-1. Luo projekti: console.cloud.google.com
-2. Ota käyttöön: Google Sheets API ja Google Drive API
-3. Luo Service Account → lataa JSON-avain
-4. Jaa Google Sheet service accountin sähköpostille (Editor)
+1. Luo uusi Google Sheet ja kopioi sen ID URL:sta
+2. Mene [console.cloud.google.com](https://console.cloud.google.com)
+3. Luo uusi projekti
+4. Ota käyttöön: **Google Sheets API** ja **Google Drive API**
+5. Luo **Service Account** → lataa JSON-avain
+6. Jaa Google Sheet service accountin sähköpostille (Editor-oikeus)
 
-### Tiedostot GitHubissa
-- scraper.py — pääskripti
-- requirements.txt — Python-kirjastot
-- .github/workflows/seuranta.yml — ajastus (joka tunti)
+### 2. GitHub Secrets
 
-### Testaus
-Actions-välilehti → Run workflow → seuraa lokia
+Mene repositoryn **Settings → Secrets and variables → Actions** ja lisää:
+
+| Nimi | Arvo |
+|------|------|
+| `ANTHROPIC_API_KEY` | Claude API -avain (alkaa sk-ant-...) |
+| `YLE_APP_ID` | Ylen API app_id |
+| `YLE_APP_KEY` | Ylen API app_key |
+| `GOOGLE_SHEET_ID` | Sheet ID URL:sta |
+| `GOOGLE_CREDENTIALS_JSON` | Koko JSON-tiedoston sisältö |
+
+### 3. Koodi GitHubiin
+
+Lataa repositoryyn:
+- `scraper.py`
+- `requirements.txt`
+- `.github/workflows/seuranta.yml`
+
+### 4. Testaa
+
+**Actions** → **Yle-uutisseuranta** → **Run workflow**
+
+Onnistuneen ajon jälkeen Google Sheetsiin ilmestyy dataa ja botti pyörii automaattisesti joka tunti.
 
 ---
 
 ## Kustannukset
 
-Batch API + lyhyt prompt:
-- Päivä: ~2-5 senttiä
-- Kuukausi: ~1-2€
-- $5 saldo kestää useita kuukausia
+Batch API + optimoitu prompt pitää kulut minimissä:
+
+| Ajanjakso | Arvio |
+|-----------|-------|
+| Päivä | 2–5 senttiä |
+| Kuukausi | 1–2 € |
+| Vuosi | 12–24 € |
+
+$5 alkusaldo riittää useiksi kuukausiksi normaalikäytössä.
+
+---
+
+## Tulevaisuuden featuret
+
+Nämä ominaisuudet lisätään kun perusjärjestelmä on toiminut vakaasti noin kuukauden ja tiedetään paljonko riskiuutisia oikeasti tunnistetaan päivässä.
+
+### Artikkelin sisältömuutosten seuranta
+
+Tällä hetkellä botti seuraa otsikkomuutoksia mutta ei artikkelin sisältöä. Yle muuttaa joskus artikkelin sisältöä jälkikäteen — esimerkiksi vaihtaa "äärioikeisto" → "oikeisto" tai poistaa arkaluonteisia yksityiskohtia.
+
+**Suunniteltu toteutus:**
+1. Vaihe 2 (artikkelin luku) vahvistaa uutisen riskitason
+2. Vahvistetuille riskiuutisille lasketaan tiivistetty sisältöhash
+3. Joka skannaus tarkistetaan onko hash muuttunut
+4. Jos muuttui → artikkeli luetaan uudelleen ja tagit päivitetään
+5. Muutoshistoria tallentuu sarakkeeseen `sisalto_muutoshistoria`
+
+**Miksi ei vielä:** Tarvitaan ensin data siitä kuinka monta riskiuutista tunnistetaan päivässä, jotta voidaan arvioida kustannusvaikutus luotettavasti.
+
+### Testirajoituksen poisto
+
+Tällä hetkellä koodissa on `MAX_UUTISET_PER_AJO = 10` joka rajoittaa kategorisointia testivaiheessa. Kun järjestelmä toimii vakaasti, vaihda arvoksi `None`:
+
+```python
+MAX_UUTISET_PER_AJO = None
+```
+
+### Parempi osiotunnistus
+
+Tällä hetkellä Ylen uutisten kategoria (Kotimaa, Politiikka, Talous jne.) tunnistetaan vain otsikosta. Ylen sivusto lataa sisällön JavaScriptillä eikä kategoriaa saa suoraan HTML:stä tai RSS:stä. Jos Yle avaa tähän paremman API:n, voidaan aihetagi hakea suoraan Yleltä Claude-kategorisointia käyttämättä — säästäisi tokeneita.
+
+### Pivot-tilastot
+
+Google Sheetsiin voidaan lisätä automaattiset pivot-taulut jotka laskevat:
+- Keskimääräinen näkyvyysaika kategorioittain
+- Julkaisuikkunajakauma vasemmistolle epäedullisilla vs. muilla uutisilla
+- Etusivulle pääsyprosentti kategorioittain
