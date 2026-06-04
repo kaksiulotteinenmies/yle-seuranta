@@ -2,8 +2,8 @@ name: Yle-uutisseuranta
 
 on:
   schedule:
-    # Joka tunti (UTC-aikaa, Suomi = UTC+3 kesällä / UTC+2 talvella)
-    - cron: '0 * * * *'
+    # Joka tunti 17 minuuttia yli (UTC-aikaa, Suomi = UTC+3 kesällä / UTC+2 talvella)
+    - cron: '17 * * * *'
   # Mahdollistaa myös manuaalisen käynnistyksen GitHubista
   workflow_dispatch:
 
