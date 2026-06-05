@@ -870,7 +870,7 @@ def main():
                 "aihe":      [t.strip() for t in k.get("tagit_aihe","").split(",") if t.strip()],
                 "kehystys":  [t.strip() for t in k.get("tagit_kehystys","").split(",") if t.strip()],
                 "poliittinen_signaali": [t.strip() for t in k.get("tagit_poliittinen_signaali","").split(",") if t.strip()],
-                "henkilot":  [t.strip() for t in k.get("tagit_henkilot","").split(",") if t.strip()],
+                "henkilot":  [],  # Kategorisoidaan aina uudelleen otsikosta
                 "varmuus":   k.get("varmuus",0),
             }
 
@@ -886,6 +886,16 @@ def main():
         if url not in kategorisoidut
     }
     tarvitsee_v1 = {k:v for k,v in tarvitsee_v1.items() if v}
+
+    # Lisää myös uutiset joilla ei ole henkilötageja vielä
+    tarvitsee_henkilot = {
+        url: (etusivu_per_url.get(url,[{}])[0].get("otsikko") or rss_uutiset.get(url,{}).get("otsikko",""))
+        for url, k in kortit.items()
+        if url not in tarvitsee_v1 and not k.get("tagit_henkilot","")
+    }
+    tarvitsee_v1.update(tarvitsee_henkilot)
+    if tarvitsee_henkilot:
+        print(f"Uudelleenkategorisoidaan henkilöt: {len(tarvitsee_henkilot)} uutista")
 
     if MAX_UUTISET_PER_AJO and len(tarvitsee_v1) > MAX_UUTISET_PER_AJO:
         print(f"Rajoitetaan {len(tarvitsee_v1)} → {MAX_UUTISET_PER_AJO} uutiseen (testirajoitus)")
@@ -920,7 +930,11 @@ def main():
         tagit_aihe = tagit_str(kat.get("aihe",[]))
         tagit_keh  = tagit_str(kat.get("kehystys",[]))
         tagit_vas  = tagit_str(kat.get("poliittinen_signaali",[]))
-        tagit_henkilot = tagit_str(kat.get("henkilot",[]))
+        # Henkilöt: käytä uutta batch-tulosta jos saatavilla, muuten välimuisti
+        if url in uudet_kategoriat:
+            tagit_henkilot = tagit_str(uudet_kategoriat[url].get("henkilot",[]))
+        else:
+            tagit_henkilot = tagit_str(kat.get("henkilot",[]))
         varmuus    = kat.get("varmuus",0)
         teemat = etsi_teemat(otsikko)
 
