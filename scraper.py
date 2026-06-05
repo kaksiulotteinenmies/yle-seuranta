@@ -151,7 +151,7 @@ RAAKA_OTSIKOT = [
     "tagit_aihehenkilot","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
-    "varmuus","tarkistamatta","viive_julkaisusta_min",
+    "varmuus","tarkistamatta","etusivu_haettu","viive_julkaisusta_min",
 ]
 
 KORTTI_OTSIKOT = [
@@ -165,7 +165,7 @@ KORTTI_OTSIKOT = [
     "tagit_aihehenkilot","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
-    "varmuus","tarkistamatta",
+    "varmuus","tarkistamatta","etusivu_haettu",
     "otsikko_alkuperainen","otsikko_nykyinen","muokattu_kertaa",
     "viimeisin_muutos","muutoshistoria",
     "paivitetty",
@@ -295,7 +295,8 @@ def hae_etusivu_uutiset():
         except Exception as e:
             print(f"Virhe UA:lla {ua[:40]}: {e}")
     if not resp or resp.status_code != 200:
-        raise Exception(f"Etusivu ei vastaa — kaikki User-Agentit blokattu")
+        print("VAROITUS: Etusivu blokattu — jatketaan pelkällä RSS-datalla")
+        return [], False  # tyhjä lista + etusivu_haettu=False
     soup = BeautifulSoup(resp.text, "html.parser")
 
     tulokset = []
@@ -345,7 +346,7 @@ def hae_etusivu_uutiset():
         tulokset.append({"url":href,"otsikko":ots,"osio":"paasivu","sijainti":sijainti_per_osio["paasivu"]})
 
     print(f"Etusivu: {len(tulokset)} havaintoa {dict(sijainti_per_osio)}")
-    return tulokset
+    return tulokset, True  # lista + etusivu_haettu=True
 
 # ── Kategorisointi Vaihe 1 (Batch API) ───────────────────────────────────────
 
@@ -611,6 +612,8 @@ def paivita_tilastot(sheet, ws_kortti):
     rivit.append(["Julkaistu mutta ei nostettu etusivulle", ei_etusivulle])
     rivit.append(["Otsikkoa muutettu jälkikäteen", otsikko_muutettu])
     rivit.append(["Mahdollisia live-uutisia", liveuutisia])
+    ei_etusivu_ajot = sum(1 for k in kortit if k.get("etusivu_haettu") == "ei")
+    rivit.append(["Ajoja ilman etusivudataa (403)", ei_etusivu_ajot])
     rivit.append(["Vasemmistolle epäedullisia uutisia", vasemmisto_epa])
     rivit.append(["Oikeistolle epäedullisia uutisia", oikeisto_epa])
     rivit.append(["", ""])
@@ -701,7 +704,7 @@ def paivita_tilastot(sheet, ws_kortti):
 # ── Uutiskortti-laskenta ──────────────────────────────────────────────────────
 
 def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
-                 aihehenkilot, tagit_henkilot, live_data, vanha=None):
+                 aihehenkilot, tagit_henkilot, live_data, etusivu_haettu_str, vanha=None):
     nyt_dt = parse_dt(nyt_str)
     julkaisuaika   = rss.get("julkaisuaika","") if rss else ""
     julkaisuikkuna = rss.get("julkaisuikkuna","") if rss else ""
@@ -823,7 +826,7 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
         aihehenkilot, tagit_henkilot,
         vaihe2_tehty, vaihe2_lisatagit,
         mahdollinen_live, viimeisin_paivitys, paivitysviive,
-        varmuus, tarkistamatta,
+        varmuus, tarkistamatta, etusivu_haettu_str,
         otsikko_alkuperainen, otsikko_nykyinen,
         muokattu_kertaa, viimeisin_muutos, muutoshistoria,
         nyt_str,
@@ -837,7 +840,8 @@ def main():
     print(f"\n=== Yle-seuranta: {nyt_str} ===\n")
 
     rss_uutiset   = hae_rss_uutiset()
-    etusivu_lista = hae_etusivu_uutiset()
+    etusivu_lista, etusivu_haettu = hae_etusivu_uutiset()
+    print(f"Etusivu haettu: {etusivu_haettu}")
 
     sheet     = yhdista()
     ws_raaka  = hae_tai_luo_ws(sheet, "Raakadata",   RAAKA_OTSIKOT)
@@ -912,6 +916,7 @@ def main():
             vaihe2_lisatagit = tagit_str(kaikki_v2)
 
         tarkistamatta = "kyllä" if (varmuus < 70 or kat.get("poliittinen_signaali")) else "ei"
+        etusivu_haettu_str = "kyllä" if etusivu_haettu else "ei"
 
         # Live-uutinen tarkistus
         julkaisuaika = rss.get("julkaisuaika","")
@@ -945,7 +950,7 @@ def main():
 
         korttiarvo = laske_kortti(
             url, otsikko, rss, havainnot, nyt_str, kat, v2,
-            aihehenkilot, tagit_henkilot, live_data, vanha=kortit.get(url)
+            aihehenkilot, tagit_henkilot, live_data, etusivu_haettu_str, vanha=kortit.get(url)
         )
         if url in kortit:
             kortti_paivitys.append((kortit[url]["_rivi"], korttiarvo))
