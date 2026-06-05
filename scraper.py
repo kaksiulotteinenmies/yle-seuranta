@@ -719,7 +719,7 @@ def paivita_tilastot(sheet, ws_kortti):
 # ── Uutiskortti-laskenta ──────────────────────────────────────────────────────
 
 def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
-                 aihehenkilot, tagit_henkilot, live_data, etusivu_haettu_str, vanha=None):
+                 teemat, tagit_henkilot, live_data, etusivu_haettu_str, vanha=None):
     nyt_dt = parse_dt(nyt_str)
     julkaisuaika   = rss.get("julkaisuaika","") if rss else ""
     julkaisuikkuna = rss.get("julkaisuikkuna","") if rss else ""
@@ -838,7 +838,7 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
         paras, huonoin, keski_n, kaikki_osiot,
         etusivulla_koskaan, julkaistu_ei_nostettu,
         tagit_aihe, tagit_keh, tagit_vas,
-        aihehenkilot, tagit_henkilot,
+        teemat, tagit_henkilot,
         vaihe2_tehty, vaihe2_lisatagit,
         mahdollinen_live, viimeisin_paivitys, paivitysviive,
         varmuus, tarkistamatta, etusivu_haettu_str,
@@ -967,7 +967,7 @@ def main():
 
         korttiarvo = laske_kortti(
             url, otsikko, rss, havainnot, nyt_str, kat, v2,
-            aihehenkilot, tagit_henkilot, live_data, etusivu_haettu_str, vanha=kortit.get(url)
+            teemat, tagit_henkilot, live_data, etusivu_haettu_str, vanha=kortit.get(url)
         )
         if url in kortit:
             kortti_paivitys.append((kortit[url]["_rivi"], korttiarvo))
