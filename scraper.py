@@ -411,6 +411,10 @@ Tagit: {tagit_v1_str}
                 for ryhmä in ["aihe","kehystys","poliittinen_signaali"]:
                     data[ryhmä] = [t for t in data.get(ryhmä,[]) if t in KAIKKI_V1]
                 data["henkilot"] = [h.strip() for h in data.get("henkilot",[]) if h.strip()]
+                # Normalisoi varmuus: jos välillä 0-1, muunna 0-100
+                varmuus_raw = data.get("varmuus", 0)
+                if isinstance(varmuus_raw, float) and varmuus_raw <= 1.0:
+                    data["varmuus"] = int(varmuus_raw * 100)
                 tulokset[url] = data
             else:
                 tulokset[url] = {"aihe":[],"kehystys":[],"poliittinen_signaali":[],"varmuus":0}
@@ -927,7 +931,9 @@ def main():
                 viive_min = ""
                 if julkaisuaika:
                     dt_pub = parse_dt(julkaisuaika)
-                    if dt_pub: viive_min = int((nyt-dt_pub).total_seconds()/60)
+                    if dt_pub:
+                        v = int((nyt-dt_pub).total_seconds()/60)
+                        viive_min = v if v < 10080 else ""  # tyhjä jos yli 7 pv
                 raaka_rivit.append([
                     nyt_str, url, otsikko, h["osio"], h["sijainti"],
                     julkaisuaika, rss.get("julkaisuikkuna",""),
@@ -935,7 +941,7 @@ def main():
                     tagit_aihe, tagit_keh, tagit_vas, aihehenkilot, tagit_henkilot,
                     vaihe2_tehty, vaihe2_lisatagit,
                     live_data[0], live_data[1], live_data[2],
-                    varmuus, tarkistamatta, viive_min,
+                    varmuus, tarkistamatta, etusivu_haettu_str, viive_min,
                 ])
         else:
             raaka_rivit.append([
@@ -945,7 +951,7 @@ def main():
                 tagit_aihe, tagit_keh, tagit_vas, aihehenkilot, tagit_henkilot,
                 vaihe2_tehty, vaihe2_lisatagit,
                 live_data[0], live_data[1], live_data[2],
-                varmuus, tarkistamatta, "",
+                varmuus, tarkistamatta, etusivu_haettu_str, "",
             ])
 
         korttiarvo = laske_kortti(
