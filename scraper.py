@@ -99,10 +99,16 @@ KAIKKI_V2 = [t for g in TAGIT_V2.values() for t in g]
 
 # ── Aihehenkilöt — tekstihaku otsikosta ──────────────────────────────────────
 
-AIHEHENKILOT = {
+TEEMAT = {
     "geopolitiikka": [
         "nato","israel","palestiina","gaza","trump","biden",
         "demokratit","republikaanit","ukraina","venäjä","putin","kiina","eu","yhdysvallat",
+    ],
+    "maat": [
+        "suomi","ruotsi","norja","tanska","saksa","ranska","britannia",
+        "viro","latvia","liettua","puola","unkari","italia","espanja",
+        "turkki","iran","irak","syyria","afganistan","somalia",
+        "intia","japani","etelä-korea","australia","kanada","brasilia",
     ],
     "maahanmuutto": [
         "turvapaikanhakija","pakolainen","maahanmuuttaja","käännytys","oleskelulupa",
@@ -118,11 +124,11 @@ AIHEHENKILOT = {
     ],
 }
 
-def etsi_aihehenkilot(otsikko):
-    """Etsii otsikosta aihehenkilöt tekstihaulla."""
+def etsi_teemat(otsikko):
+    """Etsii otsikosta teemat tekstihaulla."""
     otsikko_lower = otsikko.lower()
     loydetyt = []
-    for _, sanat in AIHEHENKILOT.items():
+    for _, sanat in TEEMAT.items():
         for sana in sanat:
             if sana in otsikko_lower and sana not in loydetyt:
                 loydetyt.append(sana)
@@ -148,7 +154,7 @@ RAAKA_OTSIKOT = [
     "aikaleima","url","otsikko","osio","sijainti",
     "julkaisuaika","julkaisuikkuna","viikonpaiva","etusivulla",
     "tagit_aihe","tagit_kehystys","tagit_poliittinen_signaali",
-    "tagit_aihehenkilot","tagit_henkilot",
+    "tagit_teemat","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
     "varmuus","tarkistamatta","etusivu_haettu","viive_julkaisusta_min",
@@ -162,7 +168,7 @@ KORTTI_OTSIKOT = [
     "paras_sijainti","huonoin_sijainti","keskisijainti","osiot_joissa_nahty",
     "etusivulla_koskaan","julkaistu_ei_nostettu",
     "tagit_aihe","tagit_kehystys","tagit_poliittinen_signaali",
-    "tagit_aihehenkilot","tagit_henkilot",
+    "tagit_teemat","tagit_henkilot",
     "vaihe2_tehty","vaihe2_lisatagit",
     "mahdollinen_liveuutinen","viimeisin_paivitys","paivitysviive_pv",
     "varmuus","tarkistamatta","etusivu_haettu",
@@ -368,7 +374,10 @@ def tee_batch_kategoriointi_v1(otsikot_dict):
 TÄRKEÄT OHJEET:
 - Käytä `tekija-*` ja `kohde-*` tageja AINOASTAAN rikos-, väkivalta- tai onnettomuusuutisissa joissa on selkeä tekijä tai uhri. ÄLÄ käytä näitä urheilussa, politiikassa tai muissa neutraaleissa uutisissa.
 - Käytä `aarioikeisto-liike` tai `äärivasemmisto-liike` tageja kun uutinen käsittelee äärioikeistolaista tai äärivasemmistolaista liikettä tai järjestöä (esim. Sinimusta liike, uusnatsit, anarkistit). Nämä ovat aihetageja, eivät tekijätageja.
+- Käytä `politiikka-hallitus` VAIN suomalaisesta hallituksesta, eduskunnasta tai suomalaisista puolueista kertovissa uutisissa. Ulkomaiden hallitukset, valtiot tai poliitikot menevät `ulkomaat`-kategoriaan.
+- Käytä `politiikka-oppositio` VAIN suomalaisesta oppositiosta kertovissa uutisissa.
 - Käytä `kohde-lapsi` VAIN jos lapsi on rikoksen tai väkivallan uhri. ÄLÄ käytä jos lapsi tai alaikäinen on epäilty tai tekijä — silloin käytä `tekija-alaikainen`.
+- Käytä `savy-positiivinen` VAIN jos uutinen kertoo selkeästi hyvistä uutisista, voitoista tai myönteisistä tapahtumista. Mielenterveys-, sairaus-, kuolema- tai menetysuutiset ovat `savy-negatiivinen` tai `savy-neutraali` vaikka henkilö suhtautuisi asiaan rohkeasti.
 - Käytä `tekija-tuntematon` VAIN jos tekijää ei ole mainittu eikä vihjattu. Jos otsikossa sanotaan esim. "poliisi epäilee alaikäistä", käytä `tekija-alaikainen` eikä `tekija-tuntematon`.
 - Käytä `vasemmisto-tai-vihrea-epaonnistuu`, `ps-tai-oikeisto-onnistuu`, `vasemmisto-tai-vihrea-onnistuu` ja `oikeisto-tai-ps-epaonnistuu` tageja VAIN selkeissä poliittisissa skandaaleissa tai epäonnistumisissa — EI tavallisessa kriittisessä journalismissa tai puolueita analysoivissa uutisissa.
 - Tunnista `henkilot`-kenttään kaikki otsikossa mainitut henkilönnimet. Normalisoi nimet perusmuotoon (nominatiivi) — esim. "Häkkisen" → "Häkkinen", "Orpolle" → "Orpo". Lista voi olla tyhjä.
@@ -413,8 +422,10 @@ Tagit: {tagit_v1_str}
                 data["henkilot"] = [h.strip() for h in data.get("henkilot",[]) if h.strip()]
                 # Normalisoi varmuus: jos välillä 0-1, muunna 0-100
                 varmuus_raw = data.get("varmuus", 0)
-                if isinstance(varmuus_raw, float) and varmuus_raw <= 1.0:
+                if isinstance(varmuus_raw, (int, float)) and varmuus_raw <= 1.0:
                     data["varmuus"] = int(varmuus_raw * 100)
+                elif not isinstance(varmuus_raw, (int, float)):
+                    data["varmuus"] = 0
                 tulokset[url] = data
             else:
                 tulokset[url] = {"aihe":[],"kehystys":[],"poliittinen_signaali":[],"varmuus":0}
@@ -911,7 +922,7 @@ def main():
         tagit_vas  = tagit_str(kat.get("poliittinen_signaali",[]))
         tagit_henkilot = tagit_str(kat.get("henkilot",[]))
         varmuus    = kat.get("varmuus",0)
-        aihehenkilot = etsi_aihehenkilot(otsikko)
+        teemat = etsi_teemat(otsikko)
 
         vaihe2_tehty     = "kyllä" if v2 else "ei"
         vaihe2_lisatagit = ""
@@ -938,7 +949,7 @@ def main():
                     nyt_str, url, otsikko, h["osio"], h["sijainti"],
                     julkaisuaika, rss.get("julkaisuikkuna",""),
                     rss.get("viikonpaiva",""), "kyllä",
-                    tagit_aihe, tagit_keh, tagit_vas, aihehenkilot, tagit_henkilot,
+                    tagit_aihe, tagit_keh, tagit_vas, teemat, tagit_henkilot,
                     vaihe2_tehty, vaihe2_lisatagit,
                     live_data[0], live_data[1], live_data[2],
                     varmuus, tarkistamatta, etusivu_haettu_str, viive_min,
@@ -948,7 +959,7 @@ def main():
                 nyt_str, url, otsikko, "ei_etusivulla", "",
                 julkaisuaika, rss.get("julkaisuikkuna",""),
                 rss.get("viikonpaiva",""), "ei",
-                tagit_aihe, tagit_keh, tagit_vas, aihehenkilot, tagit_henkilot,
+                tagit_aihe, tagit_keh, tagit_vas, teemat, tagit_henkilot,
                 vaihe2_tehty, vaihe2_lisatagit,
                 live_data[0], live_data[1], live_data[2],
                 varmuus, tarkistamatta, etusivu_haettu_str, "",
