@@ -55,6 +55,7 @@ TAGIT_V1 = {
         "politiikka-hallitus","politiikka-oppositio","talous","tyollisyys",
         "ilmastonmuutos","energia","terveys","koulutus","urheilu",
         "kulttuuri","ulkomaat","onnettomuus","oikeus",
+        "aarioikeisto-liike","äärivasemmisto-liike",
     ],
     "kehystys": [
         "savy-positiivinen","savy-negatiivinen","savy-neutraali",
@@ -365,6 +366,7 @@ def tee_batch_kategoriointi_v1(otsikot_dict):
 
 TÄRKEÄT OHJEET:
 - Käytä `tekija-*` ja `kohde-*` tageja AINOASTAAN rikos-, väkivalta- tai onnettomuusuutisissa joissa on selkeä tekijä tai uhri. ÄLÄ käytä näitä urheilussa, politiikassa tai muissa neutraaleissa uutisissa.
+- Käytä `aarioikeisto-liike` tai `äärivasemmisto-liike` tageja kun uutinen käsittelee äärioikeistolaista tai äärivasemmistolaista liikettä tai järjestöä (esim. Sinimusta liike, uusnatsit, anarkistit). Nämä ovat aihetageja, eivät tekijätageja.
 - Käytä `kohde-lapsi` VAIN jos lapsi on rikoksen tai väkivallan uhri. ÄLÄ käytä jos lapsi tai alaikäinen on epäilty tai tekijä — silloin käytä `tekija-alaikainen`.
 - Käytä `tekija-tuntematon` VAIN jos tekijää ei ole mainittu eikä vihjattu. Jos otsikossa sanotaan esim. "poliisi epäilee alaikäistä", käytä `tekija-alaikainen` eikä `tekija-tuntematon`.
 - Käytä `vasemmisto-tai-vihrea-epaonnistuu`, `ps-tai-oikeisto-onnistuu`, `vasemmisto-tai-vihrea-onnistuu` ja `oikeisto-tai-ps-epaonnistuu` tageja VAIN selkeissä poliittisissa skandaaleissa tai epäonnistumisissa — EI tavallisessa kriittisessä journalismissa tai puolueita analysoivissa uutisissa.
@@ -520,6 +522,15 @@ def paivita_tilastot(sheet, ws_kortti):
     kortit = ws_kortti.get_all_records()
     if not kortit:
         return
+
+    vas_tagit = {"maahanmuuttaja-rikoksentekija","turvapaikanhakija-ongelmat",
+                 "ps-tai-oikeisto-onnistuu","vasemmisto-tai-vihrea-epaonnistuu",
+                 "ydinvoima-positiivinen","trans-kriittinen",
+                 "anti-nato","anti-eu","pro-israel","anti-palestiina"}
+    oik_tagit = {"maahanmuutto-positiivinen","oikeisto-tai-ps-epaonnistuu",
+                 "vasemmisto-tai-vihrea-onnistuu","ydinvoima-kriittinen",
+                 "ilmastotoimet-positiivinen","trans-myonteinen",
+                 "pro-nato","pro-eu","anti-israel","pro-palestiina"}
 
     nyt = datetime.now(HELSINKI)
     tanaan = nyt.strftime("%Y-%m-%d")
@@ -719,13 +730,21 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
         if etusivulla_nyt: havaintoja += len(havainnot_nyt)
         paras   = int(vanha.get("paras_sijainti")) if vanha.get("paras_sijainti") else ""
         huonoin = int(vanha.get("huonoin_sijainti") or 0)
-        keski_n = float(vanha.get("keskisijainti") or 0)
+        # Lasketaan oikea keskiarvo: (vanhat havainnot yhteensä + uudet) / kaikki havainnot
+        vanhat_havaintoja = int(vanha.get("havaintoja_yhteensa") or 0)
+        vanha_keski = float(vanha.get("keskisijainti") or 0)
         if etusivulla_nyt:
             nyt_sij = [h["sijainti"] for h in havainnot_nyt if h.get("sijainti")]
             if nyt_sij:
                 paras   = min(paras, min(nyt_sij)) if paras != "" else min(nyt_sij)
                 huonoin = max(huonoin, max(nyt_sij))
-                keski_n = round((keski_n + sum(nyt_sij)/len(nyt_sij))/2, 1)
+                uudet_summa = sum(nyt_sij)
+                kaikki_n = vanhat_havaintoja + len(nyt_sij)
+                keski_n = round((vanha_keski * vanhat_havaintoja + uudet_summa) / kaikki_n, 1) if kaikki_n > 0 else 0
+            else:
+                keski_n = vanha_keski
+        else:
+            keski_n = vanha_keski
         vanhat_osiot = set(vanha.get("osiot_joissa_nahty","").split(", ")) if vanha.get("osiot_joissa_nahty") else set()
         kaikki_osiot = ", ".join(sorted((vanhat_osiot | {h["osio"] for h in havainnot_nyt}) - {""}))
         etusivulla_koskaan    = "kyllä" if (vanha.get("etusivulla_koskaan")=="kyllä" or etusivulla_nyt) else "ei"
