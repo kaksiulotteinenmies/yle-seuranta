@@ -893,9 +893,9 @@ def main():
         for url, k in kortit.items()
         if url not in tarvitsee_v1 and not k.get("tagit_henkilot","")
     }
-    tarvitsee_v1.update(tarvitsee_henkilot)
     if tarvitsee_henkilot:
         print(f"Uudelleenkategorisoidaan henkilöt: {len(tarvitsee_henkilot)} uutista")
+    tarvitsee_v1.update(tarvitsee_henkilot)
 
     if MAX_UUTISET_PER_AJO and len(tarvitsee_v1) > MAX_UUTISET_PER_AJO:
         print(f"Rajoitetaan {len(tarvitsee_v1)} → {MAX_UUTISET_PER_AJO} uutiseen (testirajoitus)")
@@ -987,6 +987,15 @@ def main():
             kortti_paivitys.append((kortit[url]["_rivi"], korttiarvo))
         else:
             kortti_uudet.append(korttiarvo)
+
+    # Yhdistä uudelleen ennen tallennusta — batch-odottelu saattaa vanhentaa yhteyden
+    try:
+        sheet     = yhdista()
+        ws_raaka  = sheet.worksheet("Raakadata")
+        ws_kortti = sheet.worksheet("Uutiskortti")
+        print("Google Sheets -yhteys uusittu")
+    except Exception as e:
+        print(f"Uudelleenyhdistys epäonnistui: {e}")
 
     if raaka_rivit:
         ws_raaka.append_rows(raaka_rivit, value_input_option="USER_ENTERED")
