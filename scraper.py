@@ -641,7 +641,7 @@ def paivita_tilastot(sheet, ws_kortti):
     if ristiriita:
         rivit.append(["Otsikko", "Näkyvyys (h)"])
         for k in ristiriita[:10]:
-            rivit.append([k.get("otsikko","")[:80], k.get("nakyvyys_tunnit","")])
+            rivit.append([k.get("otsikko",""), k.get("nakyvyys_tunnit","")])
     rivit.append(["", ""])
 
     rivit.append(["═══ OTSIKKOMUUTOKSET ═══", ""])
@@ -650,8 +650,8 @@ def paivita_tilastot(sheet, ws_kortti):
         rivit.append(["Alkuperäinen otsikko", "Nykyinen otsikko", "Muokattu kertaa", "Viimeisin muutos"])
         for k in muutetut[:20]:
             rivit.append([
-                k.get("otsikko_alkuperainen","")[:60],
-                k.get("otsikko_nykyinen","")[:60],
+                k.get("otsikko_alkuperainen",""),
+                k.get("otsikko_nykyinen",""),
                 k.get("muokattu_kertaa",""),
                 k.get("viimeisin_muutos",""),
             ])
