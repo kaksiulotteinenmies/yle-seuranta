@@ -641,6 +641,77 @@ def paivita_tilastot(sheet, ws_kortti):
             rivit.append([tagi, ka, aihe_lkm[tagi]])
     rivit.append(["", ""])
 
+    # ── Tarkempi analyysi kategorioittain ──
+    def laske_ryhma(kortit_lista, aihetagi, pol_tagit_positiiv, pol_tagit_negat):
+        """Laskee tilastot aihetagille jaettuna poliittisen signaalin mukaan."""
+        kaikki = [k for k in kortit_lista if aihetagi in k.get("tagit_aihe","")]
+        negat  = [k for k in kaikki if any(
+            t.strip() in pol_tagit_negat
+            for t in (k.get("tagit_poliittinen_signaali","") + "," + k.get("vaihe2_lisatagit","")).split(",")
+        )]
+        positiiv = [k for k in kaikki if any(
+            t.strip() in pol_tagit_positiiv
+            for t in k.get("tagit_poliittinen_signaali","").split(",")
+        )]
+        neutraali = [k for k in kaikki if k not in negat and k not in positiiv]
+        return kaikki, negat, positiiv, neutraali
+
+    def rivi(nimi, lista):
+        arvot = [float(str(k.get("nakyvyys_tunnit") or 0).replace(",",".")) for k in lista if k.get("nakyvyys_tunnit")]
+        ka = round(sum(arvot)/len(arvot), 1) if arvot else ""
+        etusivu = sum(1 for k in lista if k.get("etusivulla_koskaan")=="kyllä")
+        return [nimi, len(lista), ka, etusivu]
+
+    rivit.append(["═══ TARKEMPI ANALYYSI KATEGORIOITTAIN ═══", ""])
+    rivit.append(["Kategoria", "Uutisia", "Ka. näkyvyys (h)", "Etusivulle pääsi"])
+
+    # Rikos — tekijän tausta
+    rivit.append(["── Rikos ──", "", "", ""])
+    _, r_negat, r_positiiv, r_neutr = laske_ryhma(kortit, "rikos",
+        pol_tagit_positiiv=[],
+        pol_tagit_negat=["maahanmuuttaja-rikoksentekija","turvapaikanhakija-ongelmat"])
+    r_tausta = [k for k in [k for k in kortit if "rikos" in k.get("tagit_aihe","")]
+                if "tekija-maahanmuuttaja" in k.get("tagit_kehystys","")]
+    r_ei_tausta = [k for k in [k for k in kortit if "rikos" in k.get("tagit_aihe","")]
+                   if "tekija-kantasuomalainen" in k.get("tagit_kehystys","")]
+    r_tuntematon = [k for k in [k for k in kortit if "rikos" in k.get("tagit_aihe","")]
+                    if "tekija-tuntematon" in k.get("tagit_kehystys","")]
+    rivit.append(rivi("  tekijä: maahanmuuttaja", r_tausta))
+    rivit.append(rivi("  tekijä: kantasuomalainen", r_ei_tausta))
+    rivit.append(rivi("  tekijä: tuntematon", r_tuntematon))
+
+    # Energia
+    rivit.append(["── Energia ──", "", "", ""])
+    e_ydin_pos = [k for k in kortit if "energia" in k.get("tagit_aihe","")
+                  and "ydinvoima-positiivinen" in k.get("tagit_poliittinen_signaali","")]
+    e_ydin_neg = [k for k in kortit if "energia" in k.get("tagit_aihe","")
+                  and "ydinvoima-kriittinen" in k.get("tagit_poliittinen_signaali","")]
+    e_muu = [k for k in kortit if "energia" in k.get("tagit_aihe","")
+             and k not in e_ydin_pos and k not in e_ydin_neg]
+    rivit.append(rivi("  ydinvoima-positiivinen", e_ydin_pos))
+    rivit.append(rivi("  ydinvoima-kriittinen", e_ydin_neg))
+    rivit.append(rivi("  muu energia", e_muu))
+
+    # Politiikka-hallitus
+    rivit.append(["── Politiikka: hallitus ──", "", "", ""])
+    _, ph_negat, ph_positiiv, ph_neutr = laske_ryhma(kortit, "politiikka-hallitus",
+        pol_tagit_positiiv=["vasemmisto-tai-vihrea-onnistuu","oikeisto-tai-ps-epaonnistuu"],
+        pol_tagit_negat=["ps-tai-oikeisto-onnistuu","vasemmisto-tai-vihrea-epaonnistuu"])
+    rivit.append(rivi("  vasemmistolle epäedullinen", ph_negat))
+    rivit.append(rivi("  oikeistolle epäedullinen", ph_positiiv))
+    rivit.append(rivi("  neutraali", ph_neutr))
+
+    # Politiikka-oppositio
+    rivit.append(["── Politiikka: oppositio ──", "", "", ""])
+    _, po_negat, po_positiiv, po_neutr = laske_ryhma(kortit, "politiikka-oppositio",
+        pol_tagit_positiiv=["vasemmisto-tai-vihrea-onnistuu","oikeisto-tai-ps-epaonnistuu"],
+        pol_tagit_negat=["ps-tai-oikeisto-onnistuu","vasemmisto-tai-vihrea-epaonnistuu"])
+    rivit.append(rivi("  vasemmistolle epäedullinen", po_negat))
+    rivit.append(rivi("  oikeistolle epäedullinen", po_positiiv))
+    rivit.append(rivi("  neutraali", po_neutr))
+
+    rivit.append(["", ""])
+
     # ── Maahanmuutto eriteltynä ──
     mmu_kaikki  = [k for k in kortit if "maahanmuutto" in k.get("tagit_aihe","")]
     mmu_negat   = [k for k in mmu_kaikki if any(
