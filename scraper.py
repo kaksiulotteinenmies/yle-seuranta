@@ -641,6 +641,37 @@ def paivita_tilastot(sheet, ws_kortti):
             rivit.append([tagi, ka, aihe_lkm[tagi]])
     rivit.append(["", ""])
 
+    # ── Maahanmuutto eriteltynä ──
+    mmu_kaikki  = [k for k in kortit if "maahanmuutto" in k.get("tagit_aihe","")]
+    mmu_negat   = [k for k in mmu_kaikki if any(
+        t.strip() in ["maahanmuuttaja-rikoksentekija","turvapaikanhakija-ongelmat",
+                      "maahanmuuton-kustannukset","integraatio-epaonnistuminen",
+                      "rinnakkaisyhteiskunta","islam-ongelmat-suomessa"]
+        for t in (k.get("tagit_poliittinen_signaali","") + "," + k.get("vaihe2_lisatagit","")).split(",")
+    )]
+    mmu_positiiv = [k for k in mmu_kaikki if any(
+        t.strip() == "maahanmuutto-positiivinen"
+        for t in k.get("tagit_poliittinen_signaali","").split(",")
+    )]
+    mmu_neutraali = [k for k in mmu_kaikki if k not in mmu_negat and k not in mmu_positiiv]
+
+    def ka_nakyvyys(lista):
+        arvot = [float(str(k.get("nakyvyys_tunnit") or 0).replace(",",".")) for k in lista if k.get("nakyvyys_tunnit")]
+        return round(sum(arvot)/len(arvot), 1) if arvot else ""
+
+    rivit.append(["═══ MAAHANMUUTTO-UUTISET ERITELTYNÄ ═══", ""])
+    rivit.append(["Ryhmä", "Uutisia", "Ka. näkyvyys (h)", "Etusivulle pääsi"])
+    rivit.append(["Ongelmat / kriittiset", len(mmu_negat), ka_nakyvyys(mmu_negat),
+                  sum(1 for k in mmu_negat if k.get("etusivulla_koskaan")=="kyllä")])
+    rivit.append(["Positiiviset", len(mmu_positiiv), ka_nakyvyys(mmu_positiiv),
+                  sum(1 for k in mmu_positiiv if k.get("etusivulla_koskaan")=="kyllä")])
+    rivit.append(["Neutraalit", len(mmu_neutraali), ka_nakyvyys(mmu_neutraali),
+                  sum(1 for k in mmu_neutraali if k.get("etusivulla_koskaan")=="kyllä")])
+    rivit.append(["Yhteensä", len(mmu_kaikki), ka_nakyvyys(mmu_kaikki),
+                  sum(1 for k in mmu_kaikki if k.get("etusivulla_koskaan")=="kyllä")])
+
+    rivit.append(["", ""])
+
     rivit.append(["═══ ILTA-HYPOTEESI: Julkaisuikkuna vs. etusivulle pääsy ═══", ""])
     rivit.append(["Aikaikkuna", "Vasemmistolle epäed.", "Oikeistolle epäed.", "Muut uutiset"])
     for ikkuna in ["aamupiikki","tyopaiva","iltapaivapiikki","ilta","yo"]:
@@ -745,12 +776,12 @@ def laske_kortti(url, otsikko, rss, havainnot_nyt, nyt_str, kat, v2,
         ensimmainen = vanha.get("ensimmainen_etusivu","")
         viimeinen   = nyt_str if etusivulla_nyt else vanha.get("viimeinen_etusivu","")
         havaintoja  = int(vanha.get("havaintoja_yhteensa") or 0)
+        # Tallenna vanhat havainnot ENNEN päivitystä keskiarvoa varten
+        vanhat_havaintoja = int(vanha.get("havaintoja_yhteensa") or 0)
+        vanha_keski = float(str(vanha.get("keskisijainti") or 0).replace(",","."))
         if etusivulla_nyt: havaintoja += len(havainnot_nyt)
         paras   = int(vanha.get("paras_sijainti")) if vanha.get("paras_sijainti") else ""
         huonoin = int(vanha.get("huonoin_sijainti") or 0)
-        # Lasketaan oikea keskiarvo: (vanhat havainnot yhteensä + uudet) / kaikki havainnot
-        vanhat_havaintoja = int(vanha.get("havaintoja_yhteensa") or 0)
-        vanha_keski = float(vanha.get("keskisijainti") or 0)
         if etusivulla_nyt:
             nyt_sij = [h["sijainti"] for h in havainnot_nyt if h.get("sijainti")]
             if nyt_sij:
