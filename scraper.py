@@ -402,12 +402,20 @@ Tagit: {tagit_v1_str}
     batch_id = batch.id
     print(f"Batch ID: {batch_id}")
 
-    for _ in range(60):
+    for _ in range(90):
         time.sleep(10)
         status = client.messages.batches.retrieve(batch_id)
         print(f"  Tila: {status.processing_status} ({status.request_counts.succeeded}/{len(requests_list)})")
         if status.processing_status == "ended":
             break
+    else:
+        print("VAROITUS: Batch ei valmistunut ajoissa — ohitetaan kategorisointi tällä kierroksella")
+        return {}
+
+    # Varmista että batch on valmis
+    if status.processing_status != "ended":
+        print("VAROITUS: Batch ei ole valmis — ohitetaan")
+        return {}
 
     tulokset = {}
     for result in client.messages.batches.results(batch_id):
