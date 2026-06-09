@@ -766,10 +766,15 @@ def paivita_tilastot(sheet, ws_kortti):
     rivit.append(["", ""])
 
     rivit.append(["═══ OTSIKKOMUUTOKSET ═══", ""])
-    muutetut = [k for k in kortit if int(k.get("muokattu_kertaa") or 0) > 0]
+    # Suodatetaan live-uutiset pois ja järjestetään uusimmat ensin
+    muutetut = [k for k in kortit
+                if int(k.get("muokattu_kertaa") or 0) > 0
+                and k.get("mahdollinen_liveuutinen") != "kyllä"]
+    muutetut = sorted(muutetut, key=lambda k: k.get("viimeisin_muutos",""), reverse=True)
+    rivit.append(["Otsikkomuutoksia yhteensä (ei live-uutiset)", len(muutetut), "", ""])
     if muutetut:
         rivit.append(["Alkuperäinen otsikko", "Nykyinen otsikko", "Muokattu kertaa", "Viimeisin muutos"])
-        for k in muutetut[:20]:
+        for k in muutetut[:50]:
             rivit.append([
                 k.get("otsikko_alkuperainen",""),
                 k.get("otsikko_nykyinen",""),
