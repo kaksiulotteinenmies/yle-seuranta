@@ -828,6 +828,53 @@ def paivita_tilastot(sheet, ws_kortti):
             ka_nakyvyys,
         ])
 
+    # ── Top maat ──
+    maat_lista = [
+        "suomi","ruotsi","norja","tanska","saksa","ranska","britannia",
+        "viro","latvia","liettua","puola","unkari","italia","espanja",
+        "turkki","iran","irak","syyria","afganistan","somalia",
+        "intia","japani","etelä-korea","australia","kanada","brasilia",
+        "ukraina","venäjä","kiina","yhdysvallat","israel","palestiina","gaza",
+    ]
+
+    maat_lkm = {}
+    maat_nakyvyys = {}
+    maat_vas = {}
+    maat_oik = {}
+
+    for k in kortit:
+        teemat_str = k.get("tagit_teemat","")
+        if not teemat_str:
+            continue
+        teemat = [t.strip().lower() for t in str(teemat_str).split(",") if t.strip()]
+        nakyvyys = float(str(k.get("nakyvyys_tunnit") or 0).replace(",","."))
+        pol_tagit = set(t.strip() for t in k.get("tagit_poliittinen_signaali","").split(",") if t.strip())
+
+        for maa in teemat:
+            if maa not in maat_lista:
+                continue
+            maat_lkm[maa] = maat_lkm.get(maa, 0) + 1
+            maat_nakyvyys[maa] = maat_nakyvyys.get(maa, 0) + nakyvyys
+            if pol_tagit & vas_tagit:
+                maat_vas[maa] = maat_vas.get(maa, 0) + 1
+            if pol_tagit & oik_tagit:
+                maat_oik[maa] = maat_oik.get(maa, 0) + 1
+
+    top_maat = sorted(maat_lkm.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    rivit.append(["", ""])
+    rivit.append(["═══ TOP 20 ENITEN UUTISOITU MAA ═══", ""])
+    rivit.append(["Maa", "Uutisia", "Vasemmisto-epäed.", "Oikeisto-epäed.", "Ka. näkyvyys (h)"])
+    for maa, lkm in top_maat:
+        ka_nakyvyys = round(maat_nakyvyys.get(maa, 0) / lkm, 1) if lkm > 0 else ""
+        rivit.append([
+            maa,
+            lkm,
+            maat_vas.get(maa, 0),
+            maat_oik.get(maa, 0),
+            ka_nakyvyys,
+        ])
+
     ws_tilastot.append_rows(rivit, value_input_option="USER_ENTERED")
     print(f"Tilastot päivitetty: {len(rivit)} riviä")
 
