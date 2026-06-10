@@ -306,7 +306,8 @@ def hae_etusivu_uutiset():
     soup = BeautifulSoup(resp.text, "html.parser")
 
     tulokset = []
-    nahdyt = set()
+    nahdyt_osio = set()  # (url, osio) pareja — sama url voi olla useassa osiossa
+    nahdyt_urlit = set()  # pelkät urlit duplikaattien välttämiseksi saman osion sisällä
     sijainti_per_osio = {}
 
     for a in soup.find_all("a", href=True):
@@ -314,9 +315,10 @@ def hae_etusivu_uutiset():
         if not href.startswith("http"): href = "https://yle.fi" + href
         if "/uutiset/lyhyesti/" not in href: continue
         ots = a.get_text(strip=True)
-        if not ots or len(ots) < 5 or href in nahdyt: continue
+        if not ots or len(ots) < 5: continue
         if any(r in ots.lower() for r in OHITA_OTSIKOT): continue
-        nahdyt.add(href)
+        if (href, "lyhyesti") in nahdyt_osio: continue
+        nahdyt_osio.add((href, "lyhyesti"))
         sijainti_per_osio["lyhyesti"] = sijainti_per_osio.get("lyhyesti",0)+1
         tulokset.append({"url":href,"otsikko":ots,"osio":"lyhyesti","sijainti":sijainti_per_osio["lyhyesti"]})
 
@@ -331,9 +333,10 @@ def hae_etusivu_uutiset():
                     if any(o in href for o in OHITA_URLIT): continue
                     if "/a/74-" not in href and "/a/3-" not in href: continue
                     ots = a.get_text(strip=True)
-                    if not ots or len(ots) < 5 or href in nahdyt: continue
+                    if not ots or len(ots) < 5: continue
                     if any(r in ots.lower() for r in OHITA_OTSIKOT): continue
-                    nahdyt.add(href)
+                    if (href, osio) in nahdyt_osio: continue
+                    nahdyt_osio.add((href, osio))
                     sijainti_per_osio[osio] = sijainti_per_osio.get(osio,0)+1
                     tulokset.append({"url":href,"otsikko":ots,"osio":osio,"sijainti":sijainti_per_osio[osio]})
                 if sib.name == "h2": break
@@ -341,13 +344,13 @@ def hae_etusivu_uutiset():
     for a in soup.find_all("a", href=True):
         href = siivoa_url(a.get("href",""))
         if not href.startswith("http"): href = "https://yle.fi" + href
-        if href in nahdyt: continue
         if any(o in href for o in OHITA_URLIT): continue
         if "/a/74-" not in href and "/a/3-" not in href: continue
         ots = a.get_text(strip=True)
         if not ots or len(ots) < 10: continue
         if any(r in ots.lower() for r in OHITA_OTSIKOT): continue
-        nahdyt.add(href)
+        if (href, "paasivu") in nahdyt_osio: continue
+        nahdyt_osio.add((href, "paasivu"))
         sijainti_per_osio["paasivu"] = sijainti_per_osio.get("paasivu",0)+1
         tulokset.append({"url":href,"otsikko":ots,"osio":"paasivu","sijainti":sijainti_per_osio["paasivu"]})
 
@@ -1049,15 +1052,7 @@ def main():
     }
     tarvitsee_v1 = {k:v for k,v in tarvitsee_v1.items() if v}
 
-    # Lisää myös uutiset joilla ei ole henkilötageja vielä
-    tarvitsee_henkilot = {
-        url: (etusivu_per_url.get(url,[{}])[0].get("otsikko") or rss_uutiset.get(url,{}).get("otsikko",""))
-        for url, k in kortit.items()
-        if url not in tarvitsee_v1 and not k.get("tagit_henkilot","")
-    }
-    if tarvitsee_henkilot:
-        print(f"Uudelleenkategorisoidaan henkilöt: {len(tarvitsee_henkilot)} uutista")
-    tarvitsee_v1.update(tarvitsee_henkilot)
+    # Henkilönimet poimitaan tekstihaulla etsi_teemat()-funktiolla — ei Claudea tarvita
 
     if MAX_UUTISET_PER_AJO and len(tarvitsee_v1) > MAX_UUTISET_PER_AJO:
         print(f"Rajoitetaan {len(tarvitsee_v1)} → {MAX_UUTISET_PER_AJO} uutiseen (testirajoitus)")
